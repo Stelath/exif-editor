@@ -1,0 +1,27 @@
+[package]
+name = "metastrip"
+version = "0.1.0"
+edition = "2021"
+description = "Cross-platform photo metadata editor and stripper"
+license = "MIT"
+
+[lib]
+name = "metastrip"
+path = "src/lib.rs"
+
+[[bin]]
+name = "metastrip"
+path = "src/main.rs"
+
+[dependencies]
+gpui = "0.2.2"
+gpui-component = "0.5.1"
+gpui-component-assets = "0.5.1"
+little_exif = "0.4"
+rayon = "1.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rfd = "0.15"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+core-text = "=21.0.0"

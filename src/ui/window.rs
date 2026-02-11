@@ -4,7 +4,7 @@ use std::process::Command;
 
 use crate::app::AppState;
 use crate::core::metadata::MetadataEngine;
-use crate::models::{MetadataTag, OutputMode, TagCategory, TagValue};
+use crate::models::{MetadataTag, OutputMode, TagValue};
 use gpui::{
     div, img, px, rgb, size, AnyElement, App, AppContext as _, Bounds, Context, ElementId,
     ExternalPaths, FocusHandle, Focusable, InteractiveElement as _, IntoElement, KeyDownEvent,
@@ -12,10 +12,9 @@ use gpui::{
     Styled as _, StyledImage as _, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::button::{Button, ButtonVariants as _};
-use gpui_component::form::{Field, Form};
-use gpui_component::group_box::{GroupBox, GroupBoxVariants as _};
-use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::divider::Divider;
+use gpui_component::form::{Field, Form};
+use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::scroll::ScrollableElement as _;
 use gpui_component::{
     h_flex, v_flex, Disableable as _, Icon, IconName, Root, Sizable as _, WindowExt as _,
@@ -65,8 +64,6 @@ struct TagEditorRow {
     row_id: String,
     tag_key: String,
     display_name: String,
-    category: TagCategory,
-    editable: bool,
     parse_error: Option<String>,
     kind: TagEditorKind,
 }
@@ -247,8 +244,7 @@ impl MetaStripWindow {
     ) -> TagEditorRow {
         let display_name = tag.display_name.clone();
         let tag_key = tag.key.clone();
-        let category = tag.category;
-        let editable = tag.editable;
+        let _editable = tag.editable || !matches!(tag.value, TagValue::Binary(_));
 
         let kind = match tag.value {
             TagValue::Text(value) => {
@@ -487,8 +483,6 @@ impl MetaStripWindow {
             row_id,
             tag_key,
             display_name,
-            category,
-            editable,
             parse_error: None,
             kind,
         }
@@ -886,15 +880,14 @@ impl MetaStripWindow {
             .id(SharedString::from("upload-drop-zone"))
             .w_full()
             .h_full()
-            .min_h(px(640.0))
-            .p_6()
+            .min_h(px(560.0))
+            .p_4()
             .flex()
             .items_center()
             .justify_center()
-            .bg(rgb(0xf5f0e8))
-            .border_2()
-            .border_color(rgb(0xd6d0c4))
-            .rounded_lg()
+            .bg(rgb(0x11161d))
+            .border_1()
+            .border_color(rgb(0x222a33))
             .can_drop(|value, _, _| value.is::<ExternalPaths>())
             .drag_over::<ExternalPaths>(|style, _, _, _| {
                 style.bg(rgb(0xede7db)).border_color(rgb(0xb8a98c))
@@ -909,7 +902,7 @@ impl MetaStripWindow {
                     .items_center()
                     .justify_center()
                     .gap_2()
-                    .text_color(rgb(0x3a3530))
+                    .text_color(rgb(0xe7edf4))
                     .child(Icon::new(IconName::FolderOpen).large())
                     .child(
                         div()
@@ -919,7 +912,7 @@ impl MetaStripWindow {
                     .child(
                         div()
                             .text_sm()
-                            .text_color(rgb(0x7a746a))
+                            .text_color(rgb(0x8d9cac))
                             .child("Drag photos here or click to browse"),
                     ),
             )
@@ -938,9 +931,11 @@ impl MetaStripWindow {
         v_flex()
             .flex_1()
             .w_full()
-            .gap_3()
+            .h_full()
+            .gap_2()
+            .p_2()
             .can_drop(|value, _, _| value.is::<ExternalPaths>())
-            .drag_over::<ExternalPaths>(|style, _, _, _| style.bg(rgb(0xede7db)))
+            .drag_over::<ExternalPaths>(|style, _, _, _| style.bg(rgb(0x18202a)))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
                 this.import_paths(paths.paths().to_vec(), cx);
             }))
@@ -957,7 +952,7 @@ impl MetaStripWindow {
                             .disabled(disable_nav)
                             .on_click(cx.listener(|this, _, _, cx| this.move_carousel(-1, cx))),
                     )
-                    .child(div().text_sm().text_color(rgb(0x5a5550)).child(format!(
+                    .child(div().text_sm().text_color(rgb(0xa8b5c2)).child(format!(
                         "{}/{}",
                         active_index + 1,
                         self.state.photos.len()
@@ -972,30 +967,29 @@ impl MetaStripWindow {
                     ),
             )
             .child(
-                h_flex().w_full().justify_center().child(
+                div().w_full().flex_1().min_h(px(460.0)).child(
                     div()
-                        .w(px(520.0))
-                        .h(px(520.0))
-                        .bg(rgb(0xffffff))
+                        .w_full()
+                        .h_full()
+                        .bg(rgb(0x0a0f14))
                         .border_1()
-                        .border_color(rgb(0xd6d0c4))
-                        .rounded_md()
+                        .border_color(rgb(0x222a33))
                         .overflow_hidden()
                         .child(
                             img(photo.path.clone())
                                 .w_full()
                                 .h_full()
-                                .object_fit(ObjectFit::Contain)
+                                .object_fit(ObjectFit::Cover)
                                 .with_fallback(|| image_fallback("No preview available")),
                         ),
                 ),
             )
             .child(
-                h_flex().w_full().justify_center().child(
+                h_flex().w_full().justify_start().child(
                     div()
-                        .w(px(520.0))
+                        .w_full()
                         .text_sm()
-                        .text_color(rgb(0x5a5550))
+                        .text_color(rgb(0xa8b5c2))
                         .child(photo.filename.clone()),
                 ),
             )
@@ -1020,16 +1014,15 @@ impl MetaStripWindow {
                         .h(px(96.0))
                         .flex_none()
                         .overflow_hidden()
-                        .bg(rgb(0xffffff))
+                        .bg(rgb(0x0a0f14))
                         .border_1()
                         .border_color(if is_active {
-                            rgb(0x8b7a60)
+                            rgb(0x3e77b6)
                         } else {
-                            rgb(0xd6d0c4)
+                            rgb(0x25303c)
                         })
-                        .rounded_sm()
                         .cursor_pointer()
-                        .hover(|style| style.bg(rgb(0xede7db)))
+                        .hover(|style| style.bg(rgb(0x18202a)))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.state.select_photo(index, false);
                             this.refresh_tag_rows = true;
@@ -1093,18 +1086,21 @@ impl MetaStripWindow {
             self.render_carousel(cx)
         };
 
-        GroupBox::new()
-            .id("left-pane")
-            .fill()
-            .w(px(720.0))
+        div()
+            .id(SharedString::from("left-pane"))
+            .w_2_3()
+            .max_w(px(980.0))
             .h_full()
+            .bg(rgb(0x0e141b))
+            .border_1()
+            .border_color(rgb(0x222a33))
             .child(
                 v_flex()
                     .h_full()
                     .w_full()
-                    .gap_3()
+                    .gap_2()
                     .child(div().flex_1().child(media))
-                    .child(self.render_action_row(cx)),
+                    .child(div().px_2().child(self.render_action_row(cx))),
             )
             .into_any_element()
     }
@@ -1117,13 +1113,12 @@ impl MetaStripWindow {
                 scalar_kind, input, ..
             } => {
                 let tag_key = row.tag_key.clone();
-                let input = Input::new(input).disabled(!row.editable).w_full().suffix(
+                let input = Input::new(input).w_full().suffix(
                     Button::new((ElementId::from("clear-inline"), row.row_id.clone()))
                         .ghost()
                         .xsmall()
                         .icon(IconName::CircleX)
                         .tab_stop(false)
-                        .disabled(!row.editable)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.clear_row(&tag_key, cx);
                         })),
@@ -1133,7 +1128,7 @@ impl MetaStripWindow {
                     scalar_kind,
                     ScalarKind::Text | ScalarKind::DateTime | ScalarKind::Unknown
                 ) {
-                    input.cleanable(row.editable)
+                    input.cleanable(true)
                 } else {
                     input
                 };
@@ -1151,16 +1146,15 @@ impl MetaStripWindow {
                     .w_full()
                     .gap_2()
                     .items_center()
-                    .child(Input::new(numerator).disabled(!row.editable).w(px(96.0)))
+                    .child(Input::new(numerator).w(px(96.0)))
                     .child(div().text_sm().text_color(rgb(0x7a746a)).child("/"))
-                    .child(Input::new(denominator).disabled(!row.editable).w(px(96.0)))
+                    .child(Input::new(denominator).w(px(96.0)))
                     .child(
                         Button::new((ElementId::from("clear-rational"), row.row_id.clone()))
                             .ghost()
                             .xsmall()
                             .icon(IconName::CircleX)
                             .tab_stop(false)
-                            .disabled(!row.editable)
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.clear_row(&tag_key, cx);
                             })),
@@ -1181,9 +1175,9 @@ impl MetaStripWindow {
                     .w_full()
                     .gap_2()
                     .items_center()
-                    .child(Input::new(latitude).disabled(!row.editable).w(px(110.0)))
-                    .child(Input::new(longitude).disabled(!row.editable).w(px(110.0)))
-                    .child(Input::new(altitude).disabled(!row.editable).w(px(110.0)))
+                    .child(Input::new(latitude).w(px(110.0)))
+                    .child(Input::new(longitude).w(px(110.0)))
+                    .child(Input::new(altitude).w(px(110.0)))
                     .child(
                         Button::new((ElementId::from("map"), row.row_id.clone()))
                             .small()
@@ -1200,7 +1194,6 @@ impl MetaStripWindow {
                             .xsmall()
                             .icon(IconName::CircleX)
                             .tab_stop(false)
-                            .disabled(!row.editable)
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.clear_row(&tag_key_for_clear, cx);
                             })),
@@ -1226,7 +1219,6 @@ impl MetaStripWindow {
                             .xsmall()
                             .icon(IconName::CircleX)
                             .tab_stop(false)
-                            .disabled(!row.editable)
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.clear_row(&tag_key, cx);
                             })),
@@ -1253,20 +1245,24 @@ impl MetaStripWindow {
             .map(|row| self.render_tag_field(row, cx))
             .collect();
 
-        GroupBox::new()
-            .id("metadata-pane")
-            .fill()
-            .flex_1()
+        div()
+            .id(SharedString::from("metadata-pane"))
+            .w_1_3()
             .h_full()
+            .bg(rgb(0x0e141b))
+            .border_1()
+            .border_color(rgb(0x222a33))
             .child(
                 div()
                     .id(SharedString::from("metadata-scroll"))
                     .flex_1()
                     .w_full()
+                    .h_full()
+                    .p_2()
                     .overflow_y_scrollbar()
                     .child(
                         Form::vertical()
-                            .label_width(px(190.0))
+                            .label_width(px(170.0))
                             .children(fields)
                             .w_full(),
                     ),
@@ -1399,13 +1395,12 @@ impl Render for MetaStripWindow {
             .on_key_down(cx.listener(Self::on_root_key_down))
             .size_full()
             .relative()
-            .p_3()
-            .gap_3()
+            .gap_0()
             .flex()
-            .bg(rgb(0xf5f0e8))
-            .text_color(rgb(0x3a3530))
+            .bg(rgb(0x060b10))
+            .text_color(rgb(0xe7edf4))
             .child(self.render_left_pane(cx))
-            .child(Divider::vertical())
+            .child(Divider::vertical().color(rgb(0x222a33)))
             .child(self.render_metadata_editor(cx))
             .children(self.render_map_popup(cx))
     }
@@ -1414,13 +1409,13 @@ impl Render for MetaStripWindow {
 fn image_fallback(message: &str) -> AnyElement {
     div()
         .size_full()
-        .bg(rgb(0xf2efe8))
+        .bg(rgb(0x0a0f14))
         .flex()
         .flex_col()
         .items_center()
         .justify_center()
         .gap_1()
-        .text_color(rgb(0x7a746a))
+        .text_color(rgb(0x8d9cac))
         .child(Icon::new(IconName::File).size(px(16.0)))
         .child(div().text_xs().child(message.to_string()))
         .into_any_element()

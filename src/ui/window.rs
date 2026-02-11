@@ -4,7 +4,7 @@ use std::process::Command;
 
 use crate::app::AppState;
 use crate::core::metadata::MetadataEngine;
-use crate::models::{MetadataTag, OutputMode, TagValue};
+use crate::models::{MetadataTag, OutputMode, TagCategory, TagValue};
 use gpui::{
     div, img, px, rgb, size, AnyElement, App, AppContext as _, Bounds, Context, ElementId,
     ExternalPaths, FocusHandle, Focusable, InteractiveElement as _, IntoElement, KeyDownEvent,
@@ -22,6 +22,58 @@ use gpui_component::{
 
 const IMAGE_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "tif", "tiff", "webp", "heif", "heic", "avif", "jxl",
+];
+
+// ---------------------------------------------------------------------------
+// Addable tag definitions
+// ---------------------------------------------------------------------------
+
+struct AddableTagDef {
+    key: &'static str,
+    display_name: &'static str,
+    category: TagCategory,
+    default_value: TagValue,
+}
+
+const ADDABLE_TAGS: &[AddableTagDef] = &[
+    // Description / text tags
+    AddableTagDef { key: "Exif.Image.ImageDescription", display_name: "Image Description", category: TagCategory::Description, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Image.Artist", display_name: "Artist", category: TagCategory::Description, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Image.Copyright", display_name: "Copyright", category: TagCategory::Description, default_value: TagValue::Text(String::new()) },
+    // Camera tags
+    AddableTagDef { key: "Exif.Image.Make", display_name: "Make", category: TagCategory::Camera, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Image.Model", display_name: "Model", category: TagCategory::Camera, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Photo.LensMake", display_name: "Lens Make", category: TagCategory::Camera, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Photo.LensModel", display_name: "Lens Model", category: TagCategory::Camera, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Photo.LensSerialNumber", display_name: "Lens Serial Number", category: TagCategory::Camera, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Photo.OwnerName", display_name: "Owner Name", category: TagCategory::Camera, default_value: TagValue::Text(String::new()) },
+    AddableTagDef { key: "Exif.Photo.SerialNumber", display_name: "Serial Number", category: TagCategory::Camera, default_value: TagValue::Text(String::new()) },
+    // DateTime tags
+    AddableTagDef { key: "Exif.Photo.DateTimeOriginal", display_name: "Date Taken", category: TagCategory::DateTime, default_value: TagValue::DateTime(String::new()) },
+    AddableTagDef { key: "Exif.Photo.CreateDate", display_name: "Create Date", category: TagCategory::DateTime, default_value: TagValue::DateTime(String::new()) },
+    AddableTagDef { key: "Exif.Image.ModifyDate", display_name: "Modify Date", category: TagCategory::DateTime, default_value: TagValue::DateTime(String::new()) },
+    // Software
+    AddableTagDef { key: "Exif.Image.Software", display_name: "Software", category: TagCategory::Software, default_value: TagValue::Text(String::new()) },
+    // Image properties
+    AddableTagDef { key: "Exif.Image.Orientation", display_name: "Orientation", category: TagCategory::Image, default_value: TagValue::Integer(1) },
+    AddableTagDef { key: "Exif.Image.XResolution", display_name: "X Resolution", category: TagCategory::Image, default_value: TagValue::Rational(72, 1) },
+    AddableTagDef { key: "Exif.Image.YResolution", display_name: "Y Resolution", category: TagCategory::Image, default_value: TagValue::Rational(72, 1) },
+    AddableTagDef { key: "Exif.Image.ImageWidth", display_name: "Image Width", category: TagCategory::Image, default_value: TagValue::Integer(0) },
+    AddableTagDef { key: "Exif.Image.ImageHeight", display_name: "Image Height", category: TagCategory::Image, default_value: TagValue::Integer(0) },
+    // Capture settings
+    AddableTagDef { key: "Exif.Photo.ISO", display_name: "ISO", category: TagCategory::Capture, default_value: TagValue::Integer(100) },
+    AddableTagDef { key: "Exif.Photo.ExposureTime", display_name: "Exposure Time", category: TagCategory::Capture, default_value: TagValue::Rational(1, 60) },
+    AddableTagDef { key: "Exif.Photo.FNumber", display_name: "F-Number", category: TagCategory::Capture, default_value: TagValue::Rational(28, 10) },
+    AddableTagDef { key: "Exif.Photo.FocalLength", display_name: "Focal Length", category: TagCategory::Capture, default_value: TagValue::Rational(50, 1) },
+    AddableTagDef { key: "Exif.Photo.ApertureValue", display_name: "Aperture Value", category: TagCategory::Capture, default_value: TagValue::Rational(30, 10) },
+    AddableTagDef { key: "Exif.Photo.ExposureProgram", display_name: "Exposure Program", category: TagCategory::Capture, default_value: TagValue::Integer(0) },
+    AddableTagDef { key: "Exif.Photo.MeteringMode", display_name: "Metering Mode", category: TagCategory::Capture, default_value: TagValue::Integer(0) },
+    AddableTagDef { key: "Exif.Photo.Flash", display_name: "Flash", category: TagCategory::Capture, default_value: TagValue::Integer(0) },
+    AddableTagDef { key: "Exif.Photo.WhiteBalance", display_name: "White Balance", category: TagCategory::Capture, default_value: TagValue::Integer(0) },
+    AddableTagDef { key: "Exif.Photo.ExposureMode", display_name: "Exposure Mode", category: TagCategory::Capture, default_value: TagValue::Integer(0) },
+    AddableTagDef { key: "Exif.Photo.ColorSpace", display_name: "Color Space", category: TagCategory::Capture, default_value: TagValue::Integer(1) },
+    // Location
+    AddableTagDef { key: "Exif.GPSInfo.GPSCoordinates", display_name: "GPS Coordinates", category: TagCategory::Location, default_value: TagValue::Gps(0.0, 0.0, None) },
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -86,6 +138,18 @@ impl MapPopupState {
     }
 }
 
+#[derive(Debug)]
+struct DateTimePopupState {
+    row_id: String,
+    tag_key: String,
+    year: gpui::Entity<InputState>,
+    month: gpui::Entity<InputState>,
+    day: gpui::Entity<InputState>,
+    hour: gpui::Entity<InputState>,
+    minute: gpui::Entity<InputState>,
+    second: gpui::Entity<InputState>,
+}
+
 struct MetaStripWindow {
     state: AppState,
     status: String,
@@ -94,6 +158,9 @@ struct MetaStripWindow {
     tag_rows_photo_index: Option<usize>,
     refresh_tag_rows: bool,
     map_popup: Option<MapPopupState>,
+    add_tag_popup_open: bool,
+    add_tag_search: String,
+    datetime_popup: Option<DateTimePopupState>,
 }
 
 impl MetaStripWindow {
@@ -109,20 +176,14 @@ impl MetaStripWindow {
             tag_rows_photo_index: None,
             refresh_tag_rows: true,
             map_popup: None,
+            add_tag_popup_open: false,
+            add_tag_search: String::new(),
+            datetime_popup: None,
         }
     }
 
     fn effective_batch_preset_id(&self) -> u64 {
         self.state.active_preset.unwrap_or(2)
-    }
-
-    fn on_root_mouse_down(
-        &mut self,
-        _: &gpui::MouseDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        window.focus(&self.focus_handle(cx));
     }
 
     fn on_root_key_down(
@@ -132,6 +193,7 @@ impl MetaStripWindow {
         cx: &mut Context<Self>,
     ) {
         if window.has_focused_input(cx) {
+            cx.propagate();
             return;
         }
 
@@ -144,7 +206,7 @@ impl MetaStripWindow {
                 self.move_carousel(1, cx);
                 cx.stop_propagation();
             }
-            _ => {}
+            _ => cx.propagate(),
         }
     }
 
@@ -790,6 +852,431 @@ impl MetaStripWindow {
         cx.notify();
     }
 
+    // -----------------------------------------------------------------------
+    // Add-tag popup
+    // -----------------------------------------------------------------------
+
+    fn open_add_tag_popup(&mut self, cx: &mut Context<Self>) {
+        self.add_tag_popup_open = true;
+        self.add_tag_search.clear();
+        cx.notify();
+    }
+
+    fn close_add_tag_popup(&mut self, cx: &mut Context<Self>) {
+        self.add_tag_popup_open = false;
+        self.add_tag_search.clear();
+        cx.notify();
+    }
+
+    fn add_tag_from_popup(&mut self, key: &str, cx: &mut Context<Self>) {
+        let Some(photo_index) = self.state.active_photo else {
+            self.status = String::from("No active photo selected");
+            cx.notify();
+            return;
+        };
+
+        let def = ADDABLE_TAGS.iter().find(|d| d.key == key);
+        let value = def.map(|d| d.default_value.clone()).unwrap_or(TagValue::Text(String::new()));
+
+        match self.state.edit_tag(photo_index, key, value) {
+            Ok(()) => {
+                self.status = format!("Added {key}");
+                self.refresh_tag_rows = true;
+            }
+            Err(err) => {
+                self.status = format!("Failed to add tag: {err}");
+            }
+        }
+
+        self.add_tag_popup_open = false;
+        self.add_tag_search.clear();
+        cx.notify();
+    }
+
+    fn available_addable_tags(&self) -> Vec<&'static AddableTagDef> {
+        let Some(photo_index) = self.state.active_photo else {
+            return Vec::new();
+        };
+        let Some(photo) = self.state.photos.get(photo_index) else {
+            return Vec::new();
+        };
+
+        let existing_keys: std::collections::HashSet<String> = photo
+            .metadata
+            .all_tags()
+            .map(|t| t.key.to_ascii_lowercase())
+            .collect();
+
+        let query = self.add_tag_search.trim().to_ascii_lowercase();
+
+        ADDABLE_TAGS
+            .iter()
+            .filter(|def| !existing_keys.contains(&def.key.to_ascii_lowercase()))
+            .filter(|def| {
+                query.is_empty()
+                    || def.display_name.to_ascii_lowercase().contains(&query)
+                    || def.key.to_ascii_lowercase().contains(&query)
+                    || def.category.as_str().to_ascii_lowercase().contains(&query)
+            })
+            .collect()
+    }
+
+    fn render_add_tag_popup(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.add_tag_popup_open {
+            return None;
+        }
+
+        let available = self.available_addable_tags();
+
+        let tag_list: Vec<AnyElement> = available
+            .iter()
+            .map(|def| {
+                let key = def.key;
+                h_flex()
+                    .id(SharedString::from(format!("add-tag-{key}")))
+                    .w_full()
+                    .px_3()
+                    .py_1()
+                    .gap_3()
+                    .items_center()
+                    .cursor_pointer()
+                    .hover(|style| style.bg(rgb(0x1d2632)))
+                    .rounded_sm()
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.add_tag_from_popup(key, cx);
+                    }))
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .text_color(rgb(0xe7edf4))
+                            .child(def.display_name),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(rgb(0x6b7a8d))
+                            .child(def.category.as_str()),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_xs()
+                            .text_color(rgb(0x4a5568))
+                            .overflow_hidden()
+                            .child(def.key),
+                    )
+                    .into_any_element()
+            })
+            .collect();
+
+        Some(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .bg(rgb(0x060b10))
+                .opacity(0.96)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    v_flex()
+                        .w(px(560.0))
+                        .max_h(px(520.0))
+                        .overflow_hidden()
+                        .p_4()
+                        .gap_3()
+                        .bg(rgb(0x111820))
+                        .border_1()
+                        .border_color(rgb(0x2a3545))
+                        .rounded_md()
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .items_center()
+                                .justify_between()
+                                .child(
+                                    div()
+                                        .text_lg()
+                                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                                        .text_color(rgb(0xe7edf4))
+                                        .child("Add Metadata Field"),
+                                )
+                                .child(
+                                    Button::new("close-add-tag")
+                                        .ghost()
+                                        .small()
+                                        .icon(IconName::Close)
+                                        .on_click(
+                                            cx.listener(|this, _, _, cx| this.close_add_tag_popup(cx)),
+                                        ),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .px_2()
+                                .py_1()
+                                .bg(rgb(0x0a1018))
+                                .border_1()
+                                .border_color(rgb(0x222a33))
+                                .rounded_sm()
+                                .text_sm()
+                                .text_color(rgb(0xa8b5c2))
+                                .child(if self.add_tag_search.is_empty() {
+                                    "Type to search tags...".to_string()
+                                } else {
+                                    self.add_tag_search.clone()
+                                }),
+                        )
+                        .child(
+                            div()
+                                .id(SharedString::from("add-tag-list"))
+                                .flex_1()
+                                .w_full()
+                                .overflow_y_scrollbar()
+                                .child(
+                                    v_flex().w_full().gap_1().children(
+                                        if tag_list.is_empty() {
+                                            vec![div()
+                                                .py_4()
+                                                .text_sm()
+                                                .text_color(rgb(0x6b7a8d))
+                                                .child("All supported tags are already present on this photo.")
+                                                .into_any_element()]
+                                        } else {
+                                            tag_list
+                                        },
+                                    ),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(rgb(0x4a5568))
+                                .child(format!(
+                                    "{} tag(s) available",
+                                    available.len()
+                                )),
+                        ),
+                )
+                .into_any_element(),
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // DateTime picker popup
+    // -----------------------------------------------------------------------
+
+    fn open_datetime_popup(
+        &mut self,
+        row_id: &str,
+        tag_key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // Try to parse existing value "YYYY:MM:DD HH:MM:SS"
+        let (yr, mo, dy, hr, mi, se) = self
+            .tag_rows
+            .iter()
+            .find(|r| r.row_id == row_id)
+            .and_then(|r| match &r.kind {
+                TagEditorKind::Scalar { input, .. } => {
+                    let raw = input.read(cx).value().to_string();
+                    parse_datetime_parts(&raw)
+                }
+                _ => None,
+            })
+            .unwrap_or(("2025".into(), "01".into(), "01".into(), "12".into(), "00".into(), "00".into()));
+
+        let year = cx.new(|cx| InputState::new(window, cx).default_value(yr));
+        let month = cx.new(|cx| InputState::new(window, cx).default_value(mo));
+        let day = cx.new(|cx| InputState::new(window, cx).default_value(dy));
+        let hour = cx.new(|cx| InputState::new(window, cx).default_value(hr));
+        let minute = cx.new(|cx| InputState::new(window, cx).default_value(mi));
+        let second = cx.new(|cx| InputState::new(window, cx).default_value(se));
+
+        self.datetime_popup = Some(DateTimePopupState {
+            row_id: row_id.to_string(),
+            tag_key: tag_key.to_string(),
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        });
+
+        cx.notify();
+    }
+
+    fn close_datetime_popup(&mut self, cx: &mut Context<Self>) {
+        self.datetime_popup = None;
+        cx.notify();
+    }
+
+    fn commit_datetime_popup(&mut self, cx: &mut Context<Self>) {
+        let Some(photo_index) = self.state.active_photo else {
+            self.datetime_popup = None;
+            cx.notify();
+            return;
+        };
+
+        let Some(popup) = &self.datetime_popup else {
+            return;
+        };
+
+        let yr = popup.year.read(cx).value().to_string();
+        let mo = popup.month.read(cx).value().to_string();
+        let dy = popup.day.read(cx).value().to_string();
+        let hr = popup.hour.read(cx).value().to_string();
+        let mi = popup.minute.read(cx).value().to_string();
+        let se = popup.second.read(cx).value().to_string();
+
+        let formatted = format!(
+            "{:0>4}:{:0>2}:{:0>2} {:0>2}:{:0>2}:{:0>2}",
+            yr.trim(),
+            mo.trim(),
+            dy.trim(),
+            hr.trim(),
+            mi.trim(),
+            se.trim()
+        );
+
+        let tag_key = popup.tag_key.clone();
+
+        match self.state.edit_tag(photo_index, &tag_key, TagValue::DateTime(formatted.clone())) {
+            Ok(()) => {
+                self.status = format!("Set {tag_key} = {formatted}");
+                self.refresh_tag_rows = true;
+            }
+            Err(err) => {
+                self.status = format!("Failed to set date/time: {err}");
+            }
+        }
+
+        self.datetime_popup = None;
+        cx.notify();
+    }
+
+    fn render_datetime_popup(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let popup = self.datetime_popup.as_ref()?;
+
+        Some(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .bg(rgb(0x060b10))
+                .opacity(0.96)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    v_flex()
+                        .w(px(440.0))
+                        .p_4()
+                        .gap_3()
+                        .bg(rgb(0x111820))
+                        .border_1()
+                        .border_color(rgb(0x2a3545))
+                        .rounded_md()
+                        .child(
+                            div()
+                                .text_lg()
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(rgb(0xe7edf4))
+                                .child("Set Date & Time"),
+                        )
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(rgb(0x8d9cac))
+                                .child(format!("Tag: {}", popup.tag_key)),
+                        )
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .gap_2()
+                                .items_end()
+                                .child(
+                                    v_flex()
+                                        .gap_1()
+                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Year"))
+                                        .child(Input::new(&popup.year).w(px(72.0))),
+                                )
+                                .child(
+                                    v_flex()
+                                        .gap_1()
+                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Month"))
+                                        .child(Input::new(&popup.month).w(px(52.0))),
+                                )
+                                .child(
+                                    v_flex()
+                                        .gap_1()
+                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Day"))
+                                        .child(Input::new(&popup.day).w(px(52.0))),
+                                ),
+                        )
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .gap_2()
+                                .items_end()
+                                .child(
+                                    v_flex()
+                                        .gap_1()
+                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Hour"))
+                                        .child(Input::new(&popup.hour).w(px(52.0))),
+                                )
+                                .child(
+                                    v_flex()
+                                        .gap_1()
+                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Min"))
+                                        .child(Input::new(&popup.minute).w(px(52.0))),
+                                )
+                                .child(
+                                    v_flex()
+                                        .gap_1()
+                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Sec"))
+                                        .child(Input::new(&popup.second).w(px(52.0))),
+                                ),
+                        )
+                        .child(
+                            h_flex()
+                                .pt_2()
+                                .gap_2()
+                                .justify_end()
+                                .child(
+                                    Button::new("dt-apply")
+                                        .small()
+                                        .primary()
+                                        .icon(IconName::Check)
+                                        .label("Apply")
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.commit_datetime_popup(cx);
+                                        })),
+                                )
+                                .child(
+                                    Button::new("dt-cancel")
+                                        .small()
+                                        .ghost()
+                                        .label("Cancel")
+                                        .on_click(
+                                            cx.listener(|this, _, _, cx| this.close_datetime_popup(cx)),
+                                        ),
+                                ),
+                        ),
+                )
+                .into_any_element(),
+        )
+    }
+
     fn save_active(&mut self, cx: &mut Context<Self>) {
         let Some(photo_index) = self.state.active_photo else {
             self.status = String::from("No active photo selected");
@@ -1113,27 +1600,58 @@ impl MetaStripWindow {
                 scalar_kind, input, ..
             } => {
                 let tag_key = row.tag_key.clone();
-                let input = Input::new(input).w_full().suffix(
+                let tag_key_for_clear = row.tag_key.clone();
+                let scalar_kind = *scalar_kind;
+                let input_for_check = input.clone();
+                let input_widget = Input::new(input).w_full().suffix(
                     Button::new((ElementId::from("clear-inline"), row.row_id.clone()))
                         .ghost()
                         .xsmall()
                         .icon(IconName::CircleX)
                         .tab_stop(false)
                         .on_click(cx.listener(move |this, _, _, cx| {
-                            this.clear_row(&tag_key, cx);
+                            let current = input_for_check.read(cx).value().to_string();
+                            if current.trim().is_empty() {
+                                // Already empty — remove the tag entirely
+                                this.clear_row(&tag_key_for_clear, cx);
+                            } else {
+                                // Clear the value to empty
+                                let empty_value = match scalar_kind {
+                                    ScalarKind::DateTime => TagValue::DateTime(String::new()),
+                                    ScalarKind::Integer => TagValue::Integer(0),
+                                    ScalarKind::Float => TagValue::Float(0.0),
+                                    _ => TagValue::Text(String::new()),
+                                };
+                                if let Some(photo_index) = this.state.active_photo {
+                                    let _ = this.state.edit_tag(photo_index, &tag_key, empty_value);
+                                }
+                                this.refresh_tag_rows = true;
+                                cx.notify();
+                            }
                         })),
                 );
 
-                let input = if matches!(
-                    scalar_kind,
-                    ScalarKind::Text | ScalarKind::DateTime | ScalarKind::Unknown
-                ) {
-                    input.cleanable(true)
+                if matches!(scalar_kind, ScalarKind::DateTime) {
+                    let dt_row_id = row.row_id.clone();
+                    let dt_tag_key = row.tag_key.clone();
+                    h_flex()
+                        .w_full()
+                        .gap_1()
+                        .items_center()
+                        .child(input_widget)
+                        .child(
+                            Button::new((ElementId::from("dt-pick"), row.row_id.clone()))
+                                .ghost()
+                                .small()
+                                .icon(IconName::Calendar)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.open_datetime_popup(&dt_row_id, &dt_tag_key, window, cx);
+                                })),
+                        )
+                        .into_any_element()
                 } else {
-                    input
-                };
-
-                input.into_any_element()
+                    input_widget.into_any_element()
+                }
             }
             TagEditorKind::Rational {
                 numerator,
@@ -1245,6 +1763,8 @@ impl MetaStripWindow {
             .map(|row| self.render_tag_field(row, cx))
             .collect();
 
+        let has_photo = self.state.active_photo.is_some();
+
         div()
             .id(SharedString::from("metadata-pane"))
             .w_1_3()
@@ -1261,10 +1781,30 @@ impl MetaStripWindow {
                     .p_2()
                     .overflow_y_scrollbar()
                     .child(
-                        Form::vertical()
-                            .label_width(px(170.0))
-                            .children(fields)
-                            .w_full(),
+                        v_flex()
+                            .w_full()
+                            .gap_2()
+                            .child(
+                                Form::vertical()
+                                    .label_width(px(170.0))
+                                    .children(fields)
+                                    .w_full(),
+                            )
+                            .child(
+                                div()
+                                    .w_full()
+                                    .pt_2()
+                                    .child(
+                                        Button::new("add-metadata")
+                                            .small()
+                                            .icon(IconName::Plus)
+                                            .label("Add Metadata")
+                                            .disabled(!has_photo)
+                                            .on_click(
+                                                cx.listener(|this, _, _, cx| this.open_add_tag_popup(cx)),
+                                            ),
+                                    ),
+                            ),
                     ),
             )
             .into_any_element()
@@ -1388,10 +1928,6 @@ impl Render for MetaStripWindow {
         div()
             .id(SharedString::from("metastrip-root"))
             .track_focus(&self.focus_handle(cx))
-            .on_mouse_down(
-                gpui::MouseButton::Left,
-                cx.listener(Self::on_root_mouse_down),
-            )
             .on_key_down(cx.listener(Self::on_root_key_down))
             .size_full()
             .relative()
@@ -1403,6 +1939,8 @@ impl Render for MetaStripWindow {
             .child(Divider::vertical().color(rgb(0x222a33)))
             .child(self.render_metadata_editor(cx))
             .children(self.render_map_popup(cx))
+            .children(self.render_add_tag_popup(cx))
+            .children(self.render_datetime_popup(cx))
     }
 }
 
@@ -1513,9 +2051,39 @@ fn open_url(url: &str) -> std::io::Result<()> {
     }
 
     #[allow(unreachable_code)]
+    #[allow(unused_variables)]
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
         "opening URLs is not supported on this platform",
+    ))
+}
+
+/// Parse an EXIF date/time string "YYYY:MM:DD HH:MM:SS" into 6 components.
+fn parse_datetime_parts(raw: &str) -> Option<(String, String, String, String, String, String)> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    // Expected format: "YYYY:MM:DD HH:MM:SS"
+    let parts: Vec<&str> = raw.splitn(2, ' ').collect();
+    let date_str = parts.first()?;
+    let time_str = parts.get(1).unwrap_or(&"00:00:00");
+
+    let date_parts: Vec<&str> = date_str.split(':').collect();
+    let time_parts: Vec<&str> = time_str.split(':').collect();
+
+    if date_parts.len() < 3 {
+        return None;
+    }
+
+    Some((
+        date_parts[0].to_string(),
+        date_parts[1].to_string(),
+        date_parts[2].to_string(),
+        time_parts.first().unwrap_or(&"00").to_string(),
+        time_parts.get(1).unwrap_or(&"00").to_string(),
+        time_parts.get(2).unwrap_or(&"00").to_string(),
     ))
 }
 

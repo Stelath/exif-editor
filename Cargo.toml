@@ -1,16 +1,16 @@
 [package]
-name = "metastrip"
+name = "Exif-Editor"
 version = "0.1.0"
 edition = "2021"
 description = "Cross-platform photo metadata editor and stripper"
 license = "MIT"
 
 [lib]
-name = "metastrip"
+name = "exif_editor"
 path = "src/lib.rs"
 
 [[bin]]
-name = "metastrip"
+name = "exif_editor"
 path = "src/main.rs"
 
 [dependencies]

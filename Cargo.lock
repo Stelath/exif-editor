@@ -3,6 +3,21 @@
 version = 4
 
 [[package]]
+name = "Exif-Editor"
+version = "0.1.0"
+dependencies = [
+ "core-text",
+ "gpui",
+ "gpui-component",
+ "gpui-component-assets",
+ "little_exif",
+ "rayon",
+ "rfd",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3402,21 +3417,6 @@ dependencies = [
  "log",
  "objc",
  "paste",
-]
-
-[[package]]
-name = "metastrip"
-version = "0.1.0"
-dependencies = [
- "core-text",
- "gpui",
- "gpui-component",
- "gpui-component-assets",
- "little_exif",
- "rayon",
- "rfd",
- "serde",
- "serde_json",
 ]
 
 [[package]]

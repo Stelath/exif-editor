@@ -1,5 +1,5 @@
-use metastrip::core::metadata::MetadataEngine;
-use metastrip::models::{
+use exif_editor::core::metadata::MetadataEngine;
+use exif_editor::models::{
     MetadataTag, PhotoMetadata, PresetRule, StripPreset, TagCategory, TagValue,
 };
 

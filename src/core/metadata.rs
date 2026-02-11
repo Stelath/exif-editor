@@ -266,13 +266,7 @@ impl MetadataEngine {
                 lon = -lon;
             }
 
-            let altitude = gps_alt.map(|a| {
-                if gps_alt_ref == Some(1) {
-                    -a
-                } else {
-                    a
-                }
-            });
+            let altitude = gps_alt.map(|a| if gps_alt_ref == Some(1) { -a } else { a });
 
             exif_tags.push(MetadataTag::new(
                 "Exif.GPSInfo.GPSCoordinates",
@@ -467,16 +461,8 @@ impl MetadataEngine {
 fn convert_exif_tag(tag: &ExifTag, _hex: u16) -> Option<MetadataTag> {
     let (key, display, value) = match tag {
         // -- String tags --
-        ExifTag::Make(s) => (
-            "Exif.Image.Make",
-            "Make",
-            TagValue::Text(clean_string(s)),
-        ),
-        ExifTag::Model(s) => (
-            "Exif.Image.Model",
-            "Model",
-            TagValue::Text(clean_string(s)),
-        ),
+        ExifTag::Make(s) => ("Exif.Image.Make", "Make", TagValue::Text(clean_string(s))),
+        ExifTag::Model(s) => ("Exif.Image.Model", "Model", TagValue::Text(clean_string(s))),
         ExifTag::Software(s) => (
             "Exif.Image.Software",
             "Software",
@@ -847,11 +833,7 @@ fn convert_exif_tag(tag: &ExifTag, _hex: u16) -> Option<MetadataTag> {
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
-            (
-                "Exif.Photo.LensInfo",
-                "Lens Info",
-                TagValue::Text(display),
-            )
+            ("Exif.Photo.LensInfo", "Lens Info", TagValue::Text(display))
         }
 
         // -- Unknown variants: surface as text/binary --
@@ -992,20 +974,14 @@ fn metadata_tag_to_exif(tag: &MetadataTag) -> Option<ExifTag> {
             Some(ExifTag::LensSerialNumber(s.clone()))
         }
         (TagValue::Text(s), "Exif.Photo.OwnerName") => Some(ExifTag::OwnerName(s.clone())),
-        (TagValue::Text(s), "Exif.Photo.SerialNumber") => {
-            Some(ExifTag::SerialNumber(s.clone()))
-        }
+        (TagValue::Text(s), "Exif.Photo.SerialNumber") => Some(ExifTag::SerialNumber(s.clone())),
 
         // DateTime tags
         (TagValue::DateTime(s), "Exif.Photo.DateTimeOriginal") => {
             Some(ExifTag::DateTimeOriginal(s.clone()))
         }
-        (TagValue::DateTime(s), "Exif.Photo.CreateDate") => {
-            Some(ExifTag::CreateDate(s.clone()))
-        }
-        (TagValue::DateTime(s), "Exif.Image.ModifyDate") => {
-            Some(ExifTag::ModifyDate(s.clone()))
-        }
+        (TagValue::DateTime(s), "Exif.Photo.CreateDate") => Some(ExifTag::CreateDate(s.clone())),
+        (TagValue::DateTime(s), "Exif.Image.ModifyDate") => Some(ExifTag::ModifyDate(s.clone())),
 
         // Integer tags
         (TagValue::Integer(v), "Exif.Image.Orientation") => {

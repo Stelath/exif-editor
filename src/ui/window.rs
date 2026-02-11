@@ -136,6 +136,13 @@ impl MapPopupState {
             self.latitude, self.longitude, self.latitude, self.longitude
         )
     }
+
+    fn static_map_url(&self) -> String {
+        format!(
+            "https://staticmap.openstreetmap.de/staticmap.php?center={:.6},{:.6}&zoom=14&size=600x320&markers={:.6},{:.6},red-pushpin",
+            self.latitude, self.longitude, self.latitude, self.longitude
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -160,6 +167,8 @@ struct MetaStripWindow {
     map_popup: Option<MapPopupState>,
     add_tag_popup_open: bool,
     add_tag_search: String,
+    add_tag_search_input: Option<gpui::Entity<InputState>>,
+    add_tag_search_subscription: Option<gpui::Subscription>,
     datetime_popup: Option<DateTimePopupState>,
 }
 
@@ -178,6 +187,8 @@ impl MetaStripWindow {
             map_popup: None,
             add_tag_popup_open: false,
             add_tag_search: String::new(),
+            add_tag_search_input: None,
+            add_tag_search_subscription: None,
             datetime_popup: None,
         }
     }
@@ -794,28 +805,45 @@ impl MetaStripWindow {
             return;
         };
 
-        let latitude = match latitude_raw.trim().parse::<f64>() {
-            Ok(value) => value,
-            Err(_) => {
-                self.status = String::from("Latitude must be a valid number before opening map");
-                cx.notify();
-                return;
-            }
-        };
-
-        let longitude = match longitude_raw.trim().parse::<f64>() {
-            Ok(value) => value,
-            Err(_) => {
-                self.status = String::from("Longitude must be a valid number before opening map");
-                cx.notify();
-                return;
-            }
-        };
-
-        let altitude = if altitude_raw.trim().is_empty() {
-            None
+        let parsed_latitude = latitude_raw.trim().parse::<f64>().ok();
+        let parsed_longitude = longitude_raw.trim().parse::<f64>().ok();
+        let parsed_altitude = if altitude_raw.trim().is_empty() {
+            Some(None)
         } else {
-            altitude_raw.trim().parse::<f64>().ok()
+            altitude_raw.trim().parse::<f64>().ok().map(Some)
+        };
+
+        let fallback_gps = self
+            .state
+            .active_photo
+            .and_then(|photo_index| self.state.photos.get(photo_index))
+            .and_then(|photo| {
+                photo
+                    .metadata
+                    .all_tags()
+                    .find(|tag| tag.key.eq_ignore_ascii_case(tag_key))
+            })
+            .and_then(|tag| match &tag.value {
+                TagValue::Gps(lat, lon, alt) => Some((*lat, *lon, *alt)),
+                _ => None,
+            });
+
+        let (latitude, longitude, altitude) = match (parsed_latitude, parsed_longitude) {
+            (Some(lat), Some(lon)) => (lat, lon, parsed_altitude.flatten()),
+            _ => {
+                if let Some((lat, lon, alt)) = fallback_gps {
+                    self.status = String::from(
+                        "Using last saved GPS values because current input is not a valid coordinate",
+                    );
+                    (lat, lon, alt)
+                } else {
+                    self.status = String::from(
+                        "Latitude/Longitude must be valid numbers before opening map",
+                    );
+                    cx.notify();
+                    return;
+                }
+            }
         };
 
         self.map_popup = Some(MapPopupState {
@@ -856,15 +884,36 @@ impl MetaStripWindow {
     // Add-tag popup
     // -----------------------------------------------------------------------
 
-    fn open_add_tag_popup(&mut self, cx: &mut Context<Self>) {
+    fn open_add_tag_popup(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.add_tag_popup_open = true;
         self.add_tag_search.clear();
+        self.add_tag_search_subscription = None;
+
+        let search_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("Type to search tags...")
+                .default_value("")
+        });
+
+        let subscription =
+            cx.subscribe(&search_input, |this, input_state, event: &InputEvent, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.add_tag_search = input_state.read(cx).value().to_string();
+                    cx.notify();
+                }
+            });
+
+        search_input.update(cx, |state, cx| state.focus(window, cx));
+        self.add_tag_search_input = Some(search_input);
+        self.add_tag_search_subscription = Some(subscription);
         cx.notify();
     }
 
     fn close_add_tag_popup(&mut self, cx: &mut Context<Self>) {
         self.add_tag_popup_open = false;
         self.add_tag_search.clear();
+        self.add_tag_search_input = None;
+        self.add_tag_search_subscription = None;
         cx.notify();
     }
 
@@ -890,6 +939,8 @@ impl MetaStripWindow {
 
         self.add_tag_popup_open = false;
         self.add_tag_search.clear();
+        self.add_tag_search_input = None;
+        self.add_tag_search_subscription = None;
         cx.notify();
     }
 
@@ -1016,21 +1067,28 @@ impl MetaStripWindow {
                                 ),
                         )
                         .child(
-                            div()
-                                .w_full()
-                                .px_2()
-                                .py_1()
-                                .bg(rgb(0x0a1018))
-                                .border_1()
-                                .border_color(rgb(0x222a33))
-                                .rounded_sm()
-                                .text_sm()
-                                .text_color(rgb(0xa8b5c2))
-                                .child(if self.add_tag_search.is_empty() {
-                                    "Type to search tags...".to_string()
-                                } else {
-                                    self.add_tag_search.clone()
-                                }),
+                            self.add_tag_search_input.as_ref().map_or_else(
+                                || {
+                                    div()
+                                        .w_full()
+                                        .px_2()
+                                        .py_1()
+                                        .bg(rgb(0x0a1018))
+                                        .border_1()
+                                        .border_color(rgb(0x222a33))
+                                        .rounded_sm()
+                                        .text_sm()
+                                        .text_color(rgb(0xa8b5c2))
+                                        .child("Type to search tags...")
+                                        .into_any_element()
+                                },
+                                |search_input| {
+                                    Input::new(search_input)
+                                        .w_full()
+                                        .small()
+                                        .into_any_element()
+                                },
+                            ),
                         )
                         .child(
                             div()
@@ -1795,14 +1853,14 @@ impl MetaStripWindow {
                                     .w_full()
                                     .pt_2()
                                     .child(
-                                        Button::new("add-metadata")
+                                    Button::new("add-metadata")
                                             .small()
                                             .icon(IconName::Plus)
                                             .label("Add Metadata")
                                             .disabled(!has_photo)
-                                            .on_click(
-                                                cx.listener(|this, _, _, cx| this.open_add_tag_popup(cx)),
-                                            ),
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.open_add_tag_popup(window, cx)
+                                            })),
                                     ),
                             ),
                     ),
@@ -1853,6 +1911,33 @@ impl MetaStripWindow {
                                 .unwrap_or_default()
                         ))
                         .child("Map preview URL (OpenStreetMap):")
+                        .child(
+                            div()
+                                .w_full()
+                                .h(px(320.0))
+                                .bg(rgb(0xece7dd))
+                                .border_1()
+                                .border_color(rgb(0xd6d0c4))
+                                .rounded_sm()
+                                .overflow_hidden()
+                                .child(
+                                    img(popup.static_map_url())
+                                        .w_full()
+                                        .h_full()
+                                        .object_fit(ObjectFit::Cover)
+                                        .with_fallback(|| {
+                                            div()
+                                                .size_full()
+                                                .flex()
+                                                .items_center()
+                                                .justify_center()
+                                                .text_sm()
+                                                .text_color(rgb(0x6b6560))
+                                                .child("Map preview unavailable")
+                                                .into_any_element()
+                                        }),
+                                ),
+                        )
                         .child(
                             div()
                                 .p_2()
@@ -2034,20 +2119,35 @@ fn unique_export_path(export_dir: &Path, filename: &str, suffix: &str) -> PathBu
 fn open_url(url: &str) -> std::io::Result<()> {
     #[cfg(target_os = "macos")]
     {
-        Command::new("open").arg(url).spawn()?;
-        return Ok(());
+        let status = Command::new("open").arg(url).status()?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(std::io::Error::other(format!(
+            "open command failed with status {status}"
+        )));
     }
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd").args(["/C", "start", "", url]).spawn()?;
-        return Ok(());
+        let status = Command::new("cmd").args(["/C", "start", "", url]).status()?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(std::io::Error::other(format!(
+            "start command failed with status {status}"
+        )));
     }
 
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open").arg(url).spawn()?;
-        return Ok(());
+        let status = Command::new("xdg-open").arg(url).status()?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(std::io::Error::other(format!(
+            "xdg-open command failed with status {status}"
+        )));
     }
 
     #[allow(unreachable_code)]

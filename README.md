@@ -1,11 +1,16 @@
-<p align="center">
-  <img src="assets/logo.png" alt="Exif Editor Logo" width="200">
-</p>
+<table align="center" border="0" cellspacing="0" cellpadding="0" style="border:none;">
+  <tr>
+    <td style="border:none; padding-right:12px; vertical-align:middle;">
+      <img src="assets/logo.png" alt="Exif Editor Logo" width="64" style="border-radius:22px; display:block;">
+    </td>
+    <td style="border:none; vertical-align:middle;">
+      <h1 style="margin:0;">Exif Editor</h1>
+    </td>
+  </tr>
+</table>
 
-<h1 align="center">Exif Editor</h1>
-
 <p align="center">
-  A fast, native photo metadata editor for macOS — view, edit, and strip EXIF/IPTC/XMP tags with ease.
+  A fast, native photo metadata editor for macOS & <s>Windows</s> (Coming Soon) — view, edit, and strip EXIF/IPTC/XMP tags with ease.
 </p>
 
 ![Exif Editor Screenshot](assets/window-capture.png)
@@ -15,12 +20,9 @@
 ## Features
 
 - **View & Edit EXIF Data** — Inspect and modify every metadata tag embedded in your photos, including camera make/model, exposure settings, GPS coordinates, timestamps, and more.
-- **Bulk Processing** — Apply stripping presets across hundreds of images at once with a progress tracker.
-- **Privacy Presets** — One-click presets to strip GPS, remove all metadata, or keep only orientation data for social sharing.
+- **Bulk Processing** — Apply stripping presets across hundreds of images at once.
 - **GPS Map Preview** — Visualize embedded GPS coordinates on an interactive map.
-- **HEIC Support** — Full EXIF parsing for HEIC/HEIF files alongside JPEG, PNG, TIFF, WebP, AVIF, and JXL.
-- **Undo / Revert** — Non-destructive editing with full undo history and revert-to-disk.
-- **Sidecar Files** — Edits are tracked via `.exif_editor.json` sidecars so originals stay untouched until you save.
+- **Wide Filetype Support** — Full EXIF parsing for HEIC/HEIF, JPEG, PNG, TIFF, WebP, AVIF, and JXL.
 - **Native macOS App** — Built with [GPUI](https://gpui.rs) for a truly native, GPU-accelerated experience.
 
 ## Getting Started

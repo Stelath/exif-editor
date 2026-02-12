@@ -156,7 +156,6 @@ impl MapPopupState {
 
 #[derive(Debug)]
 struct DateTimePopupState {
-    row_id: String,
     tag_key: String,
     date_picker: gpui::Entity<DatePickerState>,
     hour: gpui::Entity<InputState>,
@@ -1177,7 +1176,6 @@ impl MetaStripWindow {
         let second = cx.new(|cx| InputState::new(window, cx).default_value(se));
 
         self.datetime_popup = Some(DateTimePopupState {
-            row_id: row_id.to_string(),
             tag_key: tag_key.to_string(),
             date_picker,
             hour,

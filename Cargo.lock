@@ -6,6 +6,7 @@ version = 4
 name = "Exif-Editor"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "core-text",
  "gpui",
@@ -17,6 +18,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "tokio",
  "zed-reqwest",
 ]
 

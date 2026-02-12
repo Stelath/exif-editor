@@ -63,9 +63,13 @@ The application will be available at `target/release/bundle/osx/Exif Editor.app`
 1. **Import Photos** — Drag and drop images into the window or use the file picker.
 2. **Inspect Metadata** — Select a photo to view all EXIF, IPTC, and XMP tags in the right panel.
 3. **Edit Tags** — Click any editable field to modify its value. Use the date picker for timestamps and the map popup for GPS coordinates.
-4. **Add Tags** — Use the "Add Tag" button to insert new metadata fields.
-5. **Strip Metadata** — Apply a preset to remove specific categories of data (GPS, all tags, etc.).
+4. **Add Tags** — Use the "Add Metadata" button to insert new metadata fields.
 6. **Save** — Save changes back to the file, or export with a suffix to preserve the original.
+
+## TODO
+- [ ] Windows Support
+- [ ] Add Presets (eg. a Privacy Preset that will strip any personally identifiable metadata)
+- [ ] MacOS Quick Actions in Finder to Strip Metadata without ever needing to open the app
 
 ## License
 

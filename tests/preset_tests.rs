@@ -1,5 +1,5 @@
-use metastrip::core::presets::builtin_presets;
-use metastrip::models::{PresetRule, TagCategory};
+use exif_editor::core::presets::builtin_presets;
+use exif_editor::models::{PresetRule, TagCategory};
 
 #[test]
 fn builtin_presets_include_expected_names() {

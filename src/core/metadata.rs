@@ -183,7 +183,9 @@ impl MetadataEngine {
 
     fn read_exif_from_file(path: &Path) -> Option<PhotoMetadata> {
         let exif = ExifMetadata::new_from_path(path).ok()?;
-        let tags = exif.data();
+
+        // Collect all tags from the metadata iterator
+        let tags: Vec<&ExifTag> = (&exif).into_iter().collect();
 
         if tags.is_empty() {
             return None;
@@ -200,35 +202,35 @@ impl MetadataEngine {
         for tag in tags {
             let hex = tag.as_u16();
 
-            // Collect GPS sub-IFD fields from Unknown variants
+            // Collect GPS sub-IFD fields from native GPS variants
             match tag {
-                ExifTag::UnknownSTRING(s, h, _) if *h == 0x0001 => {
+                ExifTag::GPSLatitudeRef(s) => {
                     gps_lat_ref = Some(s.trim_end_matches('\0').to_string());
                     continue;
                 }
-                ExifTag::UnknownRATIONAL64U(rats, h, _) if *h == 0x0002 && rats.len() >= 3 => {
+                ExifTag::GPSLatitude(rats) if rats.len() >= 3 => {
                     let d: f64 = rats[0].clone().into();
                     let m: f64 = rats[1].clone().into();
                     let s: f64 = rats[2].clone().into();
                     gps_lat_dms = Some((d, m, s));
                     continue;
                 }
-                ExifTag::UnknownSTRING(s, h, _) if *h == 0x0003 => {
+                ExifTag::GPSLongitudeRef(s) => {
                     gps_lon_ref = Some(s.trim_end_matches('\0').to_string());
                     continue;
                 }
-                ExifTag::UnknownRATIONAL64U(rats, h, _) if *h == 0x0004 && rats.len() >= 3 => {
+                ExifTag::GPSLongitude(rats) if rats.len() >= 3 => {
                     let d: f64 = rats[0].clone().into();
                     let m: f64 = rats[1].clone().into();
                     let s: f64 = rats[2].clone().into();
                     gps_lon_dms = Some((d, m, s));
                     continue;
                 }
-                ExifTag::UnknownINT8U(bytes, h, _) if *h == 0x0005 && !bytes.is_empty() => {
+                ExifTag::GPSAltitudeRef(bytes) if !bytes.is_empty() => {
                     gps_alt_ref = Some(bytes[0]);
                     continue;
                 }
-                ExifTag::UnknownRATIONAL64U(rats, h, _) if *h == 0x0006 && !rats.is_empty() => {
+                ExifTag::GPSAltitude(rats) if !rats.is_empty() => {
                     gps_alt = Some(rats[0].clone().into());
                     continue;
                 }
@@ -241,9 +243,9 @@ impl MetadataEngine {
                 ExifTag::ExifOffset(_)
                     | ExifTag::GPSInfo(_)
                     | ExifTag::InteropOffset(_)
-                    | ExifTag::ThumbnailOffset(_)
+                    | ExifTag::ThumbnailOffset(..)
                     | ExifTag::ThumbnailLength(_)
-                    | ExifTag::StripOffsets(_)
+                    | ExifTag::StripOffsets(..)
                     | ExifTag::StripByteCounts(_)
             ) {
                 continue;
@@ -266,13 +268,7 @@ impl MetadataEngine {
                 lon = -lon;
             }
 
-            let altitude = gps_alt.map(|a| {
-                if gps_alt_ref == Some(1) {
-                    -a
-                } else {
-                    a
-                }
-            });
+            let altitude = gps_alt.map(|a| if gps_alt_ref == Some(1) { -a } else { a });
 
             exif_tags.push(MetadataTag::new(
                 "Exif.GPSInfo.GPSCoordinates",
@@ -302,7 +298,7 @@ impl MetadataEngine {
             .map(|e| e.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();
 
-        if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp") {
+        if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp" | "heic" | "heif") {
             return;
         }
 
@@ -467,16 +463,8 @@ impl MetadataEngine {
 fn convert_exif_tag(tag: &ExifTag, _hex: u16) -> Option<MetadataTag> {
     let (key, display, value) = match tag {
         // -- String tags --
-        ExifTag::Make(s) => (
-            "Exif.Image.Make",
-            "Make",
-            TagValue::Text(clean_string(s)),
-        ),
-        ExifTag::Model(s) => (
-            "Exif.Image.Model",
-            "Model",
-            TagValue::Text(clean_string(s)),
-        ),
+        ExifTag::Make(s) => ("Exif.Image.Make", "Make", TagValue::Text(clean_string(s))),
+        ExifTag::Model(s) => ("Exif.Image.Model", "Model", TagValue::Text(clean_string(s))),
         ExifTag::Software(s) => (
             "Exif.Image.Software",
             "Software",
@@ -847,11 +835,7 @@ fn convert_exif_tag(tag: &ExifTag, _hex: u16) -> Option<MetadataTag> {
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
-            (
-                "Exif.Photo.LensInfo",
-                "Lens Info",
-                TagValue::Text(display),
-            )
+            ("Exif.Photo.LensInfo", "Lens Info", TagValue::Text(display))
         }
 
         // -- Unknown variants: surface as text/binary --
@@ -992,20 +976,14 @@ fn metadata_tag_to_exif(tag: &MetadataTag) -> Option<ExifTag> {
             Some(ExifTag::LensSerialNumber(s.clone()))
         }
         (TagValue::Text(s), "Exif.Photo.OwnerName") => Some(ExifTag::OwnerName(s.clone())),
-        (TagValue::Text(s), "Exif.Photo.SerialNumber") => {
-            Some(ExifTag::SerialNumber(s.clone()))
-        }
+        (TagValue::Text(s), "Exif.Photo.SerialNumber") => Some(ExifTag::SerialNumber(s.clone())),
 
         // DateTime tags
         (TagValue::DateTime(s), "Exif.Photo.DateTimeOriginal") => {
             Some(ExifTag::DateTimeOriginal(s.clone()))
         }
-        (TagValue::DateTime(s), "Exif.Photo.CreateDate") => {
-            Some(ExifTag::CreateDate(s.clone()))
-        }
-        (TagValue::DateTime(s), "Exif.Image.ModifyDate") => {
-            Some(ExifTag::ModifyDate(s.clone()))
-        }
+        (TagValue::DateTime(s), "Exif.Photo.CreateDate") => Some(ExifTag::CreateDate(s.clone())),
+        (TagValue::DateTime(s), "Exif.Image.ModifyDate") => Some(ExifTag::ModifyDate(s.clone())),
 
         // Integer tags
         (TagValue::Integer(v), "Exif.Image.Orientation") => {
@@ -1060,49 +1038,31 @@ fn metadata_tag_to_exif(tag: &MetadataTag) -> Option<ExifTag> {
 }
 
 fn write_gps_tags(exif: &mut ExifMetadata, lat: f64, lon: f64, alt: &Option<f64>) {
-    use little_exif::exif_tag::ExifTagGroup;
-
     let lat_ref = if lat >= 0.0 { "N" } else { "S" };
     let lon_ref = if lon >= 0.0 { "E" } else { "W" };
 
     let (lat_d, lat_m, lat_sn, lat_sd) = decimal_to_dms(lat.abs());
     let (lon_d, lon_m, lon_sn, lon_sd) = decimal_to_dms(lon.abs());
 
-    exif.set_tag(ExifTag::UnknownSTRING(
-        lat_ref.to_string(),
-        0x0001,
-        ExifTagGroup::GPSIFD,
-    ));
-    exif.set_tag(ExifTag::UnknownRATIONAL64U(
-        vec![ur64(lat_d, 1), ur64(lat_m, 1), ur64(lat_sn, lat_sd)],
-        0x0002,
-        ExifTagGroup::GPSIFD,
-    ));
-    exif.set_tag(ExifTag::UnknownSTRING(
-        lon_ref.to_string(),
-        0x0003,
-        ExifTagGroup::GPSIFD,
-    ));
-    exif.set_tag(ExifTag::UnknownRATIONAL64U(
-        vec![ur64(lon_d, 1), ur64(lon_m, 1), ur64(lon_sn, lon_sd)],
-        0x0004,
-        ExifTagGroup::GPSIFD,
-    ));
+    exif.set_tag(ExifTag::GPSLatitudeRef(lat_ref.to_string()));
+    exif.set_tag(ExifTag::GPSLatitude(vec![
+        ur64(lat_d, 1),
+        ur64(lat_m, 1),
+        ur64(lat_sn, lat_sd),
+    ]));
+    exif.set_tag(ExifTag::GPSLongitudeRef(lon_ref.to_string()));
+    exif.set_tag(ExifTag::GPSLongitude(vec![
+        ur64(lon_d, 1),
+        ur64(lon_m, 1),
+        ur64(lon_sn, lon_sd),
+    ]));
 
     if let Some(altitude) = alt {
         let alt_ref: u8 = if *altitude < 0.0 { 1 } else { 0 };
         let alt_abs = altitude.abs();
         let alt_num = (alt_abs * 100.0).round() as u32;
-        exif.set_tag(ExifTag::UnknownINT8U(
-            vec![alt_ref],
-            0x0005,
-            ExifTagGroup::GPSIFD,
-        ));
-        exif.set_tag(ExifTag::UnknownRATIONAL64U(
-            vec![ur64(alt_num, 100)],
-            0x0006,
-            ExifTagGroup::GPSIFD,
-        ));
+        exif.set_tag(ExifTag::GPSAltitudeRef(vec![alt_ref]));
+        exif.set_tag(ExifTag::GPSAltitude(vec![ur64(alt_num, 100)]));
     }
 }
 

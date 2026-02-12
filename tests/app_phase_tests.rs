@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use metastrip::app::{AppState, TableColumn, TableSort};
-use metastrip::core::metadata::MetadataEngine;
-use metastrip::models::{OutputMode, TagValue};
+use exif_editor::app::{AppState, TableColumn, TableSort};
+use exif_editor::core::metadata::MetadataEngine;
+use exif_editor::models::{OutputMode, TagValue};
 
 fn unique_path(name: &str, ext: &str) -> PathBuf {
     let stamp = SystemTime::now()

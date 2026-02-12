@@ -1,5 +1,6 @@
-use metastrip::core::metadata::MetadataEngine;
-use metastrip::models::{
+use std::path::Path;
+use exif_editor::core::metadata::MetadataEngine;
+use exif_editor::models::{
     MetadataTag, PhotoMetadata, PresetRule, StripPreset, TagCategory, TagValue,
 };
 
@@ -126,4 +127,69 @@ fn set_tag_updates_existing_and_inserts_new() {
     assert!(metadata
         .all_tags()
         .any(|tag| tag.key == "Exif.Image.Copyright"));
+}
+
+#[test]
+fn read_heic_extracts_full_exif() {
+    let path = Path::new("demo_images/IMG_0205.HEIC");
+    if !path.exists() {
+        eprintln!("Skipping HEIC test: demo image not found");
+        return;
+    }
+
+    let metadata = MetadataEngine::read(path).expect("should read HEIC metadata");
+
+    // Camera make & model
+    assert!(
+        metadata
+            .all_tags()
+            .any(|tag| tag.key == "Exif.Image.Make"),
+        "Expected camera Make tag"
+    );
+    assert!(
+        metadata
+            .all_tags()
+            .any(|tag| tag.key == "Exif.Image.Model"),
+        "Expected camera Model tag"
+    );
+
+    // Focal length
+    assert!(
+        metadata
+            .all_tags()
+            .any(|tag| tag.key == "Exif.Photo.FocalLength"),
+        "Expected FocalLength tag"
+    );
+
+    // Exposure time
+    assert!(
+        metadata
+            .all_tags()
+            .any(|tag| tag.key == "Exif.Photo.ExposureTime"),
+        "Expected ExposureTime tag"
+    );
+
+    // GPS coordinates
+    assert!(
+        metadata
+            .all_tags()
+            .any(|tag| tag.key == "Exif.GPSInfo.GPSCoordinates"),
+        "Expected GPS coordinates"
+    );
+    assert!(metadata.has_gps, "has_gps should be true for HEIC with GPS");
+
+    // Date taken
+    assert!(
+        metadata.date_taken.is_some(),
+        "Expected date_taken to be populated"
+    );
+
+    println!(
+        "HEIC EXIF: {} total tags, make={:?}, model={:?}, date={:?}, has_gps={}",
+        metadata.total_tag_count(),
+        metadata.camera_make,
+        metadata.camera_model,
+        metadata.date_taken,
+        metadata.has_gps
+    );
 }

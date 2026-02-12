@@ -2,8 +2,8 @@ use std::fs;
 use std::sync::mpsc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use metastrip::core::bulk::BulkProcessor;
-use metastrip::models::{ImageFormat, OutputMode, PhotoEntry, PresetRule, StripPreset};
+use exif_editor::core::bulk::BulkProcessor;
+use exif_editor::models::{ImageFormat, OutputMode, PhotoEntry, PresetRule, StripPreset};
 
 fn unique_path(name: &str, ext: &str) -> std::path::PathBuf {
     let stamp = SystemTime::now()

@@ -570,6 +570,18 @@ impl AppState {
         Ok(dirty_indices.len())
     }
 
+    pub fn clear_all_metadata(&mut self) -> usize {
+        let count = self.photos.len();
+        for photo in &mut self.photos {
+            photo.metadata.exif_tags.clear();
+            photo.metadata.iptc_tags.clear();
+            photo.metadata.xmp_tags.clear();
+            photo.metadata.update_summary_fields();
+            photo.recompute_dirty();
+        }
+        count
+    }
+
     pub fn revert_photo(&mut self, photo_index: usize) -> Result<(), AppError> {
         self.push_undo_snapshot(photo_index)?;
 

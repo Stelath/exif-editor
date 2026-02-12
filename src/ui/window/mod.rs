@@ -194,7 +194,10 @@ pub fn open_exif_editor_window(cx: &mut App) {
             ..Default::default()
         },
         |window, cx| {
-            let view = cx.new(|cx| ExifEditorWindow::new(cx.focus_handle()));
+            let view = cx.new(|cx| {
+                cx.on_release(|_, cx| cx.quit()).detach();
+                ExifEditorWindow::new(cx.focus_handle())
+            });
             cx.new(|cx| Root::new(view, window, cx))
         },
     )

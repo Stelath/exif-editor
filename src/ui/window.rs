@@ -176,6 +176,9 @@ struct MetaStripWindow {
     add_tag_search_input: Option<gpui::Entity<InputState>>,
     add_tag_search_subscription: Option<gpui::Subscription>,
     datetime_popup: Option<DateTimePopupState>,
+    metadata_filter: String,
+    metadata_filter_input: Option<gpui::Entity<InputState>>,
+    metadata_filter_subscription: Option<gpui::Subscription>,
 }
 
 impl MetaStripWindow {
@@ -196,6 +199,9 @@ impl MetaStripWindow {
             add_tag_search_input: None,
             add_tag_search_subscription: None,
             datetime_popup: None,
+            metadata_filter: String::new(),
+            metadata_filter_input: None,
+            metadata_filter_subscription: None,
         }
     }
 
@@ -284,6 +290,23 @@ impl MetaStripWindow {
     }
 
     fn ensure_tag_rows(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Lazily create the metadata filter input
+        if self.metadata_filter_input.is_none() {
+            let input = cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Filter metadata...")
+                    .default_value("")
+            });
+            let sub = cx.subscribe(&input, |this, entity, event: &InputEvent, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.metadata_filter = entity.read(cx).value().to_string();
+                    cx.notify();
+                }
+            });
+            self.metadata_filter_input = Some(input);
+            self.metadata_filter_subscription = Some(sub);
+        }
+
         let active = self.state.active_photo;
 
         if !self.refresh_tag_rows && self.tag_rows_photo_index == active {
@@ -1879,57 +1902,89 @@ impl MetaStripWindow {
     }
 
     fn render_metadata_editor(&self, cx: &mut Context<Self>) -> AnyElement {
-        let fields: Vec<Field> = self
-            .tag_rows
-            .iter()
-            .map(|row| self.render_tag_field(row, cx))
-            .collect();
+    let query = self.metadata_filter.trim().to_ascii_lowercase();
+    let fields: Vec<Field> = self
+        .tag_rows
+        .iter()
+        .filter(|row| {
+            if query.is_empty() {
+                return true;
+            }
+            row.display_name.to_ascii_lowercase().contains(&query)
+                || row.tag_key.to_ascii_lowercase().contains(&query)
+        })
+        .map(|row| self.render_tag_field(row, cx))
+        .collect();
 
-        let has_photo = self.state.active_photo.is_some();
+    let has_photo = self.state.active_photo.is_some();
+
+    let filter_input = self.metadata_filter_input.clone();
 
         div()
-            .id(SharedString::from("metadata-pane"))
-            .w_1_3()
-            .h_full()
-            .bg(cx.theme().background)
-            .border_1()
-            .border_color(cx.theme().border)
-            .child(
-                div()
-                    .id(SharedString::from("metadata-scroll"))
-                    .flex_1()
-                    .w_full()
-                    .h_full()
-                    .p_2()
-                    .overflow_y_scrollbar()
-                    .child(
-                        v_flex()
-                            .w_full()
-                            .gap_2()
-                            .child(
-                                Form::vertical()
-                                    .label_width(px(170.0))
-                                    .children(fields)
-                                    .w_full(),
-                            )
-                            .child(
-                                div()
+        .id(SharedString::from("metadata-pane"))
+        .w_1_3()
+        .h_full()
+        .bg(cx.theme().background)
+        .border_1()
+        .border_color(cx.theme().border)
+        .child(
+            v_flex()
+                .h_full()
+                .w_full()
+                .child(
+                    div()
+                        .w_full()
+                        .p_2()
+                        .border_b_1()
+                        .border_color(cx.theme().border)
+                        .child(
+                            if let Some(ref input) = filter_input {
+                                Input::new(input)
                                     .w_full()
-                                    .pt_2()
-                                    .child(
-                                    Button::new("add-metadata")
-                                            .small()
-                                            .icon(IconName::Plus)
-                                            .label("Add Metadata")
-                                            .disabled(!has_photo)
-                                            .on_click(cx.listener(|this, _, window, cx| {
-                                                this.open_add_tag_popup(window, cx)
-                                            })),
-                                    ),
-                            ),
-                    ),
-            )
-            .into_any_element()
+                                    .small()
+                                    .prefix(IconName::Search)
+                                    .into_any_element()
+                            } else {
+                                div().into_any_element()
+                            },
+                        ),
+                )
+                .child(
+                    div()
+                        .id(SharedString::from("metadata-scroll"))
+                        .flex_1()
+                        .w_full()
+                        .overflow_y_scrollbar()
+                        .p_2()
+                        .child(
+                            v_flex()
+                                .w_full()
+                                .gap_2()
+                                .child(
+                                    Form::vertical()
+                                        .label_width(px(170.0))
+                                        .children(fields)
+                                        .w_full(),
+                                )
+                                .child(
+                                    div()
+                                        .w_full()
+                                        .pt_2()
+                                        .child(
+                                        Button::new("add-metadata")
+                                                .small()
+                                                .icon(IconName::Plus)
+                                                .label("Add Metadata")
+                                                .disabled(!has_photo)
+                                                .on_click(cx.listener(|this, _, window, cx| {
+                                                    this.open_add_tag_popup(window, cx)
+                                                })),
+                                        ),
+                                ),
+                        ),
+                ),
+        )
+        .into_any_element()
     }
 
     fn render_map_popup(&self, cx: &mut Context<Self>) -> Option<AnyElement> {

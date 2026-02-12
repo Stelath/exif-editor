@@ -1,7 +1,6 @@
 use gpui_http_client::{AsyncBody, HttpClient, Response};
 use std::pin::Pin;
 use std::sync::Arc;
-use anyhow::Result;
 use tokio::runtime::Runtime;
 
 type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;

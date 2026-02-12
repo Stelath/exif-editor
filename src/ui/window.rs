@@ -6,7 +6,7 @@ use chrono::{Datelike, NaiveDate};
 
 use crate::app::AppState;
 use crate::core::metadata::MetadataEngine;
-use crate::models::{MetadataTag, OutputMode, TagCategory, TagValue};
+use crate::models::{MetadataTag, TagCategory, TagValue};
 use gpui::{
     div, img, px, size, AnyElement, App, AppContext as _, Bounds, Context, ElementId,
     ExternalPaths, FocusHandle, Focusable, InteractiveElement as _, IntoElement, KeyDownEvent,
@@ -199,9 +199,6 @@ impl MetaStripWindow {
         }
     }
 
-    fn effective_batch_preset_id(&self) -> u64 {
-        self.state.active_preset.unwrap_or(2)
-    }
 
     fn on_root_key_down(
         &mut self,
@@ -1397,34 +1394,64 @@ impl MetaStripWindow {
         cx.notify();
     }
 
-    fn batch_clear(&mut self, cx: &mut Context<Self>) {
+    fn save_all(&mut self, cx: &mut Context<Self>) {
+        match self.state.save_all_dirty() {
+            Ok(count) => {
+                self.status = format!("Saved {count} photo(s)");
+            }
+            Err(err) => {
+                self.status = format!("Save all failed: {err}");
+            }
+        }
+        cx.notify();
+    }
+
+    fn export_all(&mut self, cx: &mut Context<Self>) {
         if self.state.photos.is_empty() {
             self.status = String::from("No photos loaded");
             cx.notify();
             return;
         }
 
-        if self.state.selected_indices.is_empty() {
-            self.state.select_all_visible();
+        let Some(export_dir) = rfd::FileDialog::new()
+            .set_title("Choose export folder")
+            .pick_folder()
+        else {
+            self.status = String::from("Export cancelled");
+            cx.notify();
+            return;
+        };
+
+        let mut ok_count = 0usize;
+        let mut fail_count = 0usize;
+        for photo in &self.state.photos {
+            let output_path = unique_export_path(&export_dir, &photo.filename, "_export");
+            if let Err(_err) = fs::copy(&photo.path, &output_path)
+                .and_then(|_| {
+                    MetadataEngine::write(&output_path, &photo.metadata)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                })
+            {
+                fail_count += 1;
+            } else {
+                ok_count += 1;
+            }
         }
 
-        let preset_id = self.effective_batch_preset_id();
-        match self
-            .state
-            .run_bulk_selected(preset_id, OutputMode::Overwrite, None)
-        {
-            Ok(summary) => {
-                self.status = format!(
-                    "Batch clear complete: {} ok, {} failed, {} cancelled",
-                    summary.succeeded, summary.failed, summary.cancelled
-                );
-                self.refresh_tag_rows = true;
-            }
-            Err(err) => {
-                self.status = format!("Batch clear failed: {err}");
-            }
+        self.status = format!("Exported {ok_count} photo(s), {fail_count} failed");
+        cx.notify();
+    }
+
+    fn clear_all_metadata(&mut self, cx: &mut Context<Self>) {
+        if self.state.photos.is_empty() {
+            self.status = String::from("No photos loaded");
+            cx.notify();
+            return;
         }
 
+        let count = self.state.clear_all_metadata();
+        self.status = format!("Cleared all metadata from {count} photo(s)");
+        self.refresh_tag_rows = true;
         cx.notify();
     }
 
@@ -1524,7 +1551,7 @@ impl MetaStripWindow {
                     ),
             )
             .child(
-                div().w_full().flex_1().min_h(px(460.0)).child(
+                div().w_full().flex_1().max_h(px(480.0)).child(
                     div()
                         .w_full()
                         .h_full()
@@ -1532,11 +1559,14 @@ impl MetaStripWindow {
                         .border_1()
                         .border_color(cx.theme().border)
                         .overflow_hidden()
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .child(
                             img(photo.path.clone())
                                 .w_full()
                                 .h_full()
-                                .object_fit(ObjectFit::Cover)
+                                .object_fit(ObjectFit::Contain)
                                 .with_fallback(|| image_fallback("No preview available")),
                         ),
                 ),
@@ -1622,6 +1652,15 @@ impl MetaStripWindow {
                     .on_click(cx.listener(|this, _, _, cx| this.save_active(cx))),
             )
             .child(
+                Button::new("save-all")
+                    .small()
+                    .primary()
+                    .icon(IconName::Check)
+                    .label("Save All")
+                    .disabled(!has_photos)
+                    .on_click(cx.listener(|this, _, _, cx| this.save_all(cx))),
+            )
+            .child(
                 Button::new("export-active")
                     .small()
                     .icon(IconName::ExternalLink)
@@ -1630,13 +1669,21 @@ impl MetaStripWindow {
                     .on_click(cx.listener(|this, _, _, cx| this.export_active(cx))),
             )
             .child(
-                Button::new("batch-clear")
+                Button::new("export-all")
+                    .small()
+                    .icon(IconName::ExternalLink)
+                    .label("Export All")
+                    .disabled(!has_photos)
+                    .on_click(cx.listener(|this, _, _, cx| this.export_all(cx))),
+            )
+            .child(
+                Button::new("clear-all-meta")
                     .small()
                     .danger()
                     .icon(IconName::Delete)
-                    .label("Batch Clear")
+                    .label("Clear All")
                     .disabled(!has_photos)
-                    .on_click(cx.listener(|this, _, _, cx| this.batch_clear(cx))),
+                    .on_click(cx.listener(|this, _, _, cx| this.clear_all_metadata(cx))),
             )
             .child(div().flex_1())
             .child(
@@ -1693,10 +1740,7 @@ impl MetaStripWindow {
             TagEditorKind::Scalar {
                 scalar_kind, input, ..
             } => {
-                let tag_key = row.tag_key.clone();
                 let tag_key_for_clear = row.tag_key.clone();
-                let scalar_kind = *scalar_kind;
-                let input_for_check = input.clone();
                 let input_widget = Input::new(input).w_full().suffix(
                     Button::new((ElementId::from("clear-inline"), row.row_id.clone()))
                         .ghost()
@@ -1704,24 +1748,7 @@ impl MetaStripWindow {
                         .icon(IconName::CircleX)
                         .tab_stop(false)
                         .on_click(cx.listener(move |this, _, _, cx| {
-                            let current = input_for_check.read(cx).value().to_string();
-                            if current.trim().is_empty() {
-                                // Already empty — remove the tag entirely
-                                this.clear_row(&tag_key_for_clear, cx);
-                            } else {
-                                // Clear the value to empty
-                                let empty_value = match scalar_kind {
-                                    ScalarKind::DateTime => TagValue::DateTime(String::new()),
-                                    ScalarKind::Integer => TagValue::Integer(0),
-                                    ScalarKind::Float => TagValue::Float(0.0),
-                                    _ => TagValue::Text(String::new()),
-                                };
-                                if let Some(photo_index) = this.state.active_photo {
-                                    let _ = this.state.edit_tag(photo_index, &tag_key, empty_value);
-                                }
-                                this.refresh_tag_rows = true;
-                                cx.notify();
-                            }
+                            this.clear_row(&tag_key_for_clear, cx);
                         })),
                 );
 
@@ -2226,7 +2253,7 @@ fn parse_datetime_parts(raw: &str) -> Option<(String, String, String, String, St
 }
 
 pub fn open_metastrip_window(cx: &mut App) {
-    let bounds = Bounds::centered(None, size(px(1380.0), px(900.0)), cx);
+    let bounds = Bounds::centered(None, size(px(1100.0), px(750.0)), cx);
 
     cx.open_window(
         WindowOptions {

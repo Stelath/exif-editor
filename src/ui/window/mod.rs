@@ -156,7 +156,7 @@ struct DateTimePopupState {
     second: gpui::Entity<InputState>,
 }
 
-struct MetaStripWindow {
+struct ExifEditorWindow {
     state: AppState,
     status: String,
     focus_handle: FocusHandle,
@@ -174,29 +174,29 @@ struct MetaStripWindow {
     metadata_filter_subscription: Option<gpui::Subscription>,
 }
 
-impl Focusable for MetaStripWindow {
+impl Focusable for ExifEditorWindow {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
 
-pub fn open_metastrip_window(cx: &mut App) {
+pub fn open_exif_editor_window(cx: &mut App) {
     let bounds = Bounds::centered(None, size(px(1100.0), px(750.0)), cx);
 
     cx.open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(gpui::TitlebarOptions {
-                title: Some("MetaStrip".into()),
+                title: Some("Exif Editor".into()),
                 appears_transparent: false,
                 traffic_light_position: None,
             }),
             ..Default::default()
         },
         |window, cx| {
-            let view = cx.new(|cx| MetaStripWindow::new(cx.focus_handle()));
+            let view = cx.new(|cx| ExifEditorWindow::new(cx.focus_handle()));
             cx.new(|cx| Root::new(view, window, cx))
         },
     )
-    .expect("failed to open MetaStrip window");
+    .expect("failed to open Exif Editor window");
 }

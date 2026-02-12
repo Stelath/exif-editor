@@ -119,7 +119,7 @@ impl MetadataEngine {
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| String::from("photo"));
 
-        path.with_file_name(format!("{base_name}.metastrip.json"))
+        path.with_file_name(format!("{base_name}.exif_editor.json"))
     }
 
     pub fn apply_preset_to_metadata(metadata: &mut PhotoMetadata, preset: &StripPreset) {
@@ -326,7 +326,7 @@ impl MetadataEngine {
         let mut exif_tags = Vec::new();
 
         exif_tags.push(MetadataTag::new(
-            "MetaStrip.FileName",
+            "ExifEditor.FileName",
             "File Name",
             TagValue::Text(
                 path.file_name()
@@ -337,7 +337,7 @@ impl MetadataEngine {
         ));
 
         exif_tags.push(MetadataTag::new(
-            "MetaStrip.FileSize",
+            "ExifEditor.FileSize",
             "File Size",
             TagValue::Integer(file_meta.len() as i64),
             TagCategory::Image,

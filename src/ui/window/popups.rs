@@ -1,6 +1,6 @@
 use super::*;
 
-impl MetaStripWindow {
+impl ExifEditorWindow {
     pub(super) fn open_map_popup_for_row(&mut self, row_id: &str, tag_key: &str, cx: &mut Context<Self>) {
         let Some((latitude_raw, longitude_raw, altitude_raw)) = self.read_gps_inputs(row_id, cx)
         else {

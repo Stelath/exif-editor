@@ -1,6 +1,6 @@
 use super::*;
 
-impl MetaStripWindow {
+impl ExifEditorWindow {
     pub(super) fn render_tag_field(&self, row: &TagEditorRow, cx: &mut Context<Self>) -> Field {
         let label = row.display_name.clone();
 

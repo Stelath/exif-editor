@@ -30,3 +30,12 @@ rfd = "0.15"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 core-text = "=21.0.0"
+
+[package.metadata.bundle]
+name = "Exif Editor"
+identifier = "com.stelath.exif-editor"
+icon = ["assets/logo.icns"]
+version = "0.1.0"
+copyright = "Copyright (c) 2026 Alex. MIT License."
+short_description = "A native photo metadata editor for macOS"
+long_description = "View, edit, and strip EXIF/IPTC/XMP metadata from photos with a fast, GPU-accelerated native interface."

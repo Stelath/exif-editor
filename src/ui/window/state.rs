@@ -1,6 +1,6 @@
 use super::*;
 
-impl MetaStripWindow {
+impl ExifEditorWindow {
     pub(super) fn new(focus_handle: FocusHandle) -> Self {
         let mut state = AppState::default();
         state.active_preset = Some(2);

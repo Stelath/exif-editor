@@ -1,6 +1,6 @@
 use super::*;
 
-impl MetaStripWindow {
+impl ExifEditorWindow {
     pub(super) fn move_carousel(&mut self, delta: isize, cx: &mut Context<Self>) {
         if self.state.photos.is_empty() {
             return;

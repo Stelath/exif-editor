@@ -1,11 +1,11 @@
 use super::*;
 
-impl Render for MetaStripWindow {
+impl Render for ExifEditorWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.ensure_tag_rows(window, cx);
 
         div()
-            .id(SharedString::from("metastrip-root"))
+            .id(SharedString::from("exif-editor-root"))
             .track_focus(&self.focus_handle(cx))
             .on_key_down(cx.listener(Self::on_root_key_down))
             .size_full()

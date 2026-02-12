@@ -1,6 +1,6 @@
 use super::*;
 
-impl MetaStripWindow {
+impl ExifEditorWindow {
     pub(super) fn ensure_tag_rows(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         // Lazily create the metadata filter input
         if self.metadata_filter_input.is_none() {

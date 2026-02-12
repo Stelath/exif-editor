@@ -117,7 +117,7 @@ fn set_tag_updates_existing_and_inserts_new() {
     MetadataEngine::set_tag_in_metadata(
         &mut metadata,
         "Exif.Image.Copyright",
-        TagValue::Text(String::from("(c) MetaStrip")),
+        TagValue::Text(String::from("(c) Exif Editor")),
     );
 
     assert_eq!(metadata.total_tag_count(), 2);

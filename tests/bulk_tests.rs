@@ -11,7 +11,7 @@ fn unique_path(name: &str, ext: &str) -> std::path::PathBuf {
         .expect("system time should be after unix epoch")
         .as_nanos();
     let mut path = std::env::temp_dir();
-    path.push(format!("metastrip_{name}_{stamp}.{ext}"));
+    path.push(format!("exif_editor_{name}_{stamp}.{ext}"));
     path
 }
 

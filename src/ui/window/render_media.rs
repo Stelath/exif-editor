@@ -1,6 +1,6 @@
 use super::*;
 
-impl MetaStripWindow {
+impl ExifEditorWindow {
     pub(super) fn render_upload_box(&self, cx: &mut Context<Self>) -> AnyElement {
         let drop_bg = cx.theme().drop_target;
         let drop_border = cx.theme().drag_border;

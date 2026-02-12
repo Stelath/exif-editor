@@ -2,6 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use chrono::{Datelike, NaiveDate};
+
 use crate::app::AppState;
 use crate::core::metadata::MetadataEngine;
 use crate::models::{MetadataTag, OutputMode, TagCategory, TagValue};
@@ -13,6 +15,8 @@ use gpui::{
 };
 use gpui_component::theme::{ActiveTheme, Theme, ThemeMode};
 use gpui_component::button::{Button, ButtonVariants as _};
+use gpui_component::date_picker::{DatePicker, DatePickerState};
+use gpui_component::calendar::Date;
 use gpui_component::divider::Divider;
 use gpui_component::form::{Field, Form};
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -139,9 +143,13 @@ impl MapPopupState {
     }
 
     fn static_map_url(&self) -> String {
+        let zoom = 14_u32;
+        let n = 2_f64.powi(zoom as i32);
+        let x = ((self.longitude + 180.0) / 360.0 * n).floor() as u32;
+        let lat_rad = self.latitude.to_radians();
+        let y = ((1.0 - lat_rad.tan().asinh() / std::f64::consts::PI) / 2.0 * n).floor() as u32;
         format!(
-            "https://staticmap.openstreetmap.de/staticmap.php?center={:.6},{:.6}&zoom=14&size=600x320&markers={:.6},{:.6},red-pushpin",
-            self.latitude, self.longitude, self.latitude, self.longitude
+            "https://tile.openstreetmap.org/{zoom}/{x}/{y}.png"
         )
     }
 }
@@ -150,9 +158,7 @@ impl MapPopupState {
 struct DateTimePopupState {
     row_id: String,
     tag_key: String,
-    year: gpui::Entity<InputState>,
-    month: gpui::Entity<InputState>,
-    day: gpui::Entity<InputState>,
+    date_picker: gpui::Entity<DatePickerState>,
     hour: gpui::Entity<InputState>,
     minute: gpui::Entity<InputState>,
     second: gpui::Entity<InputState>,
@@ -1152,9 +1158,20 @@ impl MetaStripWindow {
             })
             .unwrap_or(("2025".into(), "01".into(), "01".into(), "12".into(), "00".into(), "00".into()));
 
-        let year = cx.new(|cx| InputState::new(window, cx).default_value(yr));
-        let month = cx.new(|cx| InputState::new(window, cx).default_value(mo));
-        let day = cx.new(|cx| InputState::new(window, cx).default_value(dy));
+        let initial_date = NaiveDate::from_ymd_opt(
+            yr.trim().parse().unwrap_or(2025),
+            mo.trim().parse().unwrap_or(1),
+            dy.trim().parse().unwrap_or(1),
+        )
+        .unwrap_or_else(|| NaiveDate::from_ymd_opt(2025, 1, 1).unwrap());
+
+        let date_picker = cx.new(|cx| {
+            let mut picker = DatePickerState::new(window, cx)
+                .date_format("%Y:%m:%d");
+            picker.set_date(initial_date, window, cx);
+            picker
+        });
+
         let hour = cx.new(|cx| InputState::new(window, cx).default_value(hr));
         let minute = cx.new(|cx| InputState::new(window, cx).default_value(mi));
         let second = cx.new(|cx| InputState::new(window, cx).default_value(se));
@@ -1162,9 +1179,7 @@ impl MetaStripWindow {
         self.datetime_popup = Some(DateTimePopupState {
             row_id: row_id.to_string(),
             tag_key: tag_key.to_string(),
-            year,
-            month,
-            day,
+            date_picker,
             hour,
             minute,
             second,
@@ -1189,18 +1204,29 @@ impl MetaStripWindow {
             return;
         };
 
-        let yr = popup.year.read(cx).value().to_string();
-        let mo = popup.month.read(cx).value().to_string();
-        let dy = popup.day.read(cx).value().to_string();
+        let picker_state = popup.date_picker.read(cx);
+        let date = match picker_state.date() {
+            Date::Single(Some(d)) => d,
+            _ => {
+                self.status = "No date selected".to_string();
+                self.datetime_popup = None;
+                cx.notify();
+                return;
+            }
+        };
+
+        let yr = date.year();
+        let mo = date.month();
+        let dy = date.day();
         let hr = popup.hour.read(cx).value().to_string();
         let mi = popup.minute.read(cx).value().to_string();
         let se = popup.second.read(cx).value().to_string();
 
         let formatted = format!(
-            "{:0>4}:{:0>2}:{:0>2} {:0>2}:{:0>2}:{:0>2}",
-            yr.trim(),
-            mo.trim(),
-            dy.trim(),
+            "{:04}:{:02}:{:02} {:0>2}:{:0>2}:{:0>2}",
+            yr,
+            mo,
+            dy,
             hr.trim(),
             mi.trim(),
             se.trim()
@@ -1260,28 +1286,10 @@ impl MetaStripWindow {
                                 .child(format!("Tag: {}", popup.tag_key)),
                         )
                         .child(
-                            h_flex()
-                                .w_full()
-                                .gap_2()
-                                .items_end()
-                                .child(
-                                    v_flex()
-                                        .gap_1()
-                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Year"))
-                                        .child(Input::new(&popup.year).w(px(72.0))),
-                                )
-                                .child(
-                                    v_flex()
-                                        .gap_1()
-                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Month"))
-                                        .child(Input::new(&popup.month).w(px(52.0))),
-                                )
-                                .child(
-                                    v_flex()
-                                        .gap_1()
-                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Day"))
-                                        .child(Input::new(&popup.day).w(px(52.0))),
-                                ),
+                            v_flex()
+                                .gap_1()
+                                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Date"))
+                                .child(DatePicker::new(&popup.date_picker).w(px(200.0))),
                         )
                         .child(
                             h_flex()

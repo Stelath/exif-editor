@@ -6,11 +6,12 @@ use crate::app::AppState;
 use crate::core::metadata::MetadataEngine;
 use crate::models::{MetadataTag, OutputMode, TagCategory, TagValue};
 use gpui::{
-    div, img, px, rgb, size, AnyElement, App, AppContext as _, Bounds, Context, ElementId,
+    div, img, px, size, AnyElement, App, AppContext as _, Bounds, Context, ElementId,
     ExternalPaths, FocusHandle, Focusable, InteractiveElement as _, IntoElement, KeyDownEvent,
     ObjectFit, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, StyledImage as _, Window, WindowBounds, WindowOptions,
 };
+use gpui_component::theme::{ActiveTheme, Theme, ThemeMode};
 use gpui_component::button::{Button, ButtonVariants as _};
 use gpui_component::divider::Divider;
 use gpui_component::form::{Field, Form};
@@ -983,6 +984,7 @@ impl MetaStripWindow {
             .iter()
             .map(|def| {
                 let key = def.key;
+                let list_hover_bg = cx.theme().list_hover;
                 h_flex()
                     .id(SharedString::from(format!("add-tag-{key}")))
                     .w_full()
@@ -991,7 +993,7 @@ impl MetaStripWindow {
                     .gap_3()
                     .items_center()
                     .cursor_pointer()
-                    .hover(|style| style.bg(rgb(0x1d2632)))
+                    .hover(move |style| style.bg(list_hover_bg))
                     .rounded_sm()
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.add_tag_from_popup(key, cx);
@@ -1000,20 +1002,20 @@ impl MetaStripWindow {
                         div()
                             .text_sm()
                             .font_weight(gpui::FontWeight::MEDIUM)
-                            .text_color(rgb(0xe7edf4))
+                            .text_color(cx.theme().foreground)
                             .child(def.display_name),
                     )
                     .child(
                         div()
                             .text_xs()
-                            .text_color(rgb(0x6b7a8d))
+                            .text_color(cx.theme().muted_foreground)
                             .child(def.category.as_str()),
                     )
                     .child(
                         div()
                             .flex_1()
                             .text_xs()
-                            .text_color(rgb(0x4a5568))
+                            .text_color(cx.theme().muted_foreground)
                             .overflow_hidden()
                             .child(def.key),
                     )
@@ -1028,7 +1030,7 @@ impl MetaStripWindow {
                 .left_0()
                 .right_0()
                 .bottom_0()
-                .bg(rgb(0x060b10))
+                .bg(cx.theme().background)
                 .opacity(0.96)
                 .flex()
                 .items_center()
@@ -1040,9 +1042,9 @@ impl MetaStripWindow {
                         .overflow_hidden()
                         .p_4()
                         .gap_3()
-                        .bg(rgb(0x111820))
+                        .bg(cx.theme().popover)
                         .border_1()
-                        .border_color(rgb(0x2a3545))
+                        .border_color(cx.theme().border)
                         .rounded_md()
                         .child(
                             h_flex()
@@ -1053,7 +1055,7 @@ impl MetaStripWindow {
                                     div()
                                         .text_lg()
                                         .font_weight(gpui::FontWeight::SEMIBOLD)
-                                        .text_color(rgb(0xe7edf4))
+                                        .text_color(cx.theme().foreground)
                                         .child("Add Metadata Field"),
                                 )
                                 .child(
@@ -1073,12 +1075,12 @@ impl MetaStripWindow {
                                         .w_full()
                                         .px_2()
                                         .py_1()
-                                        .bg(rgb(0x0a1018))
+                                        .bg(cx.theme().secondary)
                                         .border_1()
-                                        .border_color(rgb(0x222a33))
+                                        .border_color(cx.theme().border)
                                         .rounded_sm()
                                         .text_sm()
-                                        .text_color(rgb(0xa8b5c2))
+                                        .text_color(cx.theme().muted_foreground)
                                         .child("Type to search tags...")
                                         .into_any_element()
                                 },
@@ -1102,7 +1104,7 @@ impl MetaStripWindow {
                                             vec![div()
                                                 .py_4()
                                                 .text_sm()
-                                                .text_color(rgb(0x6b7a8d))
+                                                .text_color(cx.theme().muted_foreground)
                                                 .child("All supported tags are already present on this photo.")
                                                 .into_any_element()]
                                         } else {
@@ -1114,7 +1116,7 @@ impl MetaStripWindow {
                         .child(
                             div()
                                 .text_xs()
-                                .text_color(rgb(0x4a5568))
+                                .text_color(cx.theme().muted_foreground)
                                 .child(format!(
                                     "{} tag(s) available",
                                     available.len()
@@ -1230,7 +1232,7 @@ impl MetaStripWindow {
                 .left_0()
                 .right_0()
                 .bottom_0()
-                .bg(rgb(0x060b10))
+                .bg(cx.theme().background)
                 .opacity(0.96)
                 .flex()
                 .items_center()
@@ -1240,21 +1242,21 @@ impl MetaStripWindow {
                         .w(px(440.0))
                         .p_4()
                         .gap_3()
-                        .bg(rgb(0x111820))
+                        .bg(cx.theme().popover)
                         .border_1()
-                        .border_color(rgb(0x2a3545))
+                        .border_color(cx.theme().border)
                         .rounded_md()
                         .child(
                             div()
                                 .text_lg()
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .text_color(rgb(0xe7edf4))
+                                .text_color(cx.theme().foreground)
                                 .child("Set Date & Time"),
                         )
                         .child(
                             div()
                                 .text_sm()
-                                .text_color(rgb(0x8d9cac))
+                                .text_color(cx.theme().muted_foreground)
                                 .child(format!("Tag: {}", popup.tag_key)),
                         )
                         .child(
@@ -1265,19 +1267,19 @@ impl MetaStripWindow {
                                 .child(
                                     v_flex()
                                         .gap_1()
-                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Year"))
+                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Year"))
                                         .child(Input::new(&popup.year).w(px(72.0))),
                                 )
                                 .child(
                                     v_flex()
                                         .gap_1()
-                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Month"))
+                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Month"))
                                         .child(Input::new(&popup.month).w(px(52.0))),
                                 )
                                 .child(
                                     v_flex()
                                         .gap_1()
-                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Day"))
+                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Day"))
                                         .child(Input::new(&popup.day).w(px(52.0))),
                                 ),
                         )
@@ -1289,19 +1291,19 @@ impl MetaStripWindow {
                                 .child(
                                     v_flex()
                                         .gap_1()
-                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Hour"))
+                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Hour"))
                                         .child(Input::new(&popup.hour).w(px(52.0))),
                                 )
                                 .child(
                                     v_flex()
                                         .gap_1()
-                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Min"))
+                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Min"))
                                         .child(Input::new(&popup.minute).w(px(52.0))),
                                 )
                                 .child(
                                     v_flex()
                                         .gap_1()
-                                        .child(div().text_xs().text_color(rgb(0x8d9cac)).child("Sec"))
+                                        .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Sec"))
                                         .child(Input::new(&popup.second).w(px(52.0))),
                                 ),
                         )
@@ -1421,6 +1423,8 @@ impl MetaStripWindow {
     }
 
     fn render_upload_box(&self, cx: &mut Context<Self>) -> AnyElement {
+        let drop_bg = cx.theme().drop_target;
+        let drop_border = cx.theme().drag_border;
         div()
             .id(SharedString::from("upload-drop-zone"))
             .w_full()
@@ -1430,12 +1434,12 @@ impl MetaStripWindow {
             .flex()
             .items_center()
             .justify_center()
-            .bg(rgb(0x11161d))
+            .bg(cx.theme().secondary)
             .border_1()
-            .border_color(rgb(0x222a33))
+            .border_color(cx.theme().border)
             .can_drop(|value, _, _| value.is::<ExternalPaths>())
-            .drag_over::<ExternalPaths>(|style, _, _, _| {
-                style.bg(rgb(0xede7db)).border_color(rgb(0xb8a98c))
+            .drag_over::<ExternalPaths>(move |style, _, _, _| {
+                style.bg(drop_bg).border_color(drop_border)
             })
             .on_click(cx.listener(|this, _, _, cx| this.browse_files(cx)))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
@@ -1447,7 +1451,7 @@ impl MetaStripWindow {
                     .items_center()
                     .justify_center()
                     .gap_2()
-                    .text_color(rgb(0xe7edf4))
+                    .text_color(cx.theme().foreground)
                     .child(Icon::new(IconName::FolderOpen).large())
                     .child(
                         div()
@@ -1457,7 +1461,7 @@ impl MetaStripWindow {
                     .child(
                         div()
                             .text_sm()
-                            .text_color(rgb(0x8d9cac))
+                            .text_color(cx.theme().muted_foreground)
                             .child("Drag photos here or click to browse"),
                     ),
             )
@@ -1473,6 +1477,8 @@ impl MetaStripWindow {
         let photo = &self.state.photos[active_index];
         let disable_nav = self.state.photos.len() <= 1;
 
+        let drop_target = cx.theme().drop_target;
+
         v_flex()
             .flex_1()
             .w_full()
@@ -1480,7 +1486,7 @@ impl MetaStripWindow {
             .gap_2()
             .p_2()
             .can_drop(|value, _, _| value.is::<ExternalPaths>())
-            .drag_over::<ExternalPaths>(|style, _, _, _| style.bg(rgb(0x18202a)))
+            .drag_over::<ExternalPaths>(move |style, _, _, _| style.bg(drop_target))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
                 this.import_paths(paths.paths().to_vec(), cx);
             }))
@@ -1497,7 +1503,7 @@ impl MetaStripWindow {
                             .disabled(disable_nav)
                             .on_click(cx.listener(|this, _, _, cx| this.move_carousel(-1, cx))),
                     )
-                    .child(div().text_sm().text_color(rgb(0xa8b5c2)).child(format!(
+                    .child(div().text_sm().text_color(cx.theme().muted_foreground).child(format!(
                         "{}/{}",
                         active_index + 1,
                         self.state.photos.len()
@@ -1516,9 +1522,9 @@ impl MetaStripWindow {
                     div()
                         .w_full()
                         .h_full()
-                        .bg(rgb(0x0a0f14))
+                        .bg(cx.theme().muted)
                         .border_1()
-                        .border_color(rgb(0x222a33))
+                        .border_color(cx.theme().border)
                         .overflow_hidden()
                         .child(
                             img(photo.path.clone())
@@ -1534,7 +1540,7 @@ impl MetaStripWindow {
                     div()
                         .w_full()
                         .text_sm()
-                        .text_color(rgb(0xa8b5c2))
+                        .text_color(cx.theme().muted_foreground)
                         .child(photo.filename.clone()),
                 ),
             )
@@ -1553,21 +1559,26 @@ impl MetaStripWindow {
                     let is_active = self.state.active_photo == Some(index);
                     let filename = photo.filename.clone();
 
+                    let list_hover = cx.theme().list_hover;
+                    let thumb_muted = cx.theme().muted;
+                    let active_border = cx.theme().primary;
+                    let inactive_border = cx.theme().border;
+
                     div()
                         .id(SharedString::from(format!("thumb-{index}")))
                         .w(px(96.0))
                         .h(px(96.0))
                         .flex_none()
                         .overflow_hidden()
-                        .bg(rgb(0x0a0f14))
+                        .bg(thumb_muted)
                         .border_1()
                         .border_color(if is_active {
-                            rgb(0x3e77b6)
+                            active_border
                         } else {
-                            rgb(0x25303c)
+                            inactive_border
                         })
                         .cursor_pointer()
-                        .hover(|style| style.bg(rgb(0x18202a)))
+                        .hover(move |style| style.bg(list_hover))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.state.select_photo(index, false);
                             this.refresh_tag_rows = true;
@@ -1621,6 +1632,25 @@ impl MetaStripWindow {
                     .disabled(!has_photos)
                     .on_click(cx.listener(|this, _, _, cx| this.batch_clear(cx))),
             )
+            .child(div().flex_1())
+            .child(
+                Button::new("toggle-theme")
+                    .ghost()
+                    .small()
+                    .icon(if cx.theme().mode == ThemeMode::Dark {
+                        IconName::Sun
+                    } else {
+                        IconName::Moon
+                    })
+                    .on_click(cx.listener(|_this, _, window, cx| {
+                        let new_mode = if cx.theme().mode == ThemeMode::Dark {
+                            ThemeMode::Light
+                        } else {
+                            ThemeMode::Dark
+                        };
+                        Theme::change(new_mode, Some(window), cx);
+                    })),
+            )
             .into_any_element()
     }
 
@@ -1636,9 +1666,9 @@ impl MetaStripWindow {
             .w_2_3()
             .max_w(px(980.0))
             .h_full()
-            .bg(rgb(0x0e141b))
+            .bg(cx.theme().background)
             .border_1()
-            .border_color(rgb(0x222a33))
+            .border_color(cx.theme().border)
             .child(
                 v_flex()
                     .h_full()
@@ -1723,7 +1753,7 @@ impl MetaStripWindow {
                     .gap_2()
                     .items_center()
                     .child(Input::new(numerator).w(px(96.0)))
-                    .child(div().text_sm().text_color(rgb(0x7a746a)).child("/"))
+                    .child(div().text_sm().text_color(cx.theme().muted_foreground).child("/"))
                     .child(Input::new(denominator).w(px(96.0)))
                     .child(
                         Button::new((ElementId::from("clear-rational"), row.row_id.clone()))
@@ -1786,7 +1816,7 @@ impl MetaStripWindow {
                         div()
                             .flex_1()
                             .text_sm()
-                            .text_color(rgb(0x7a746a))
+                            .text_color(cx.theme().muted_foreground)
                             .child(format!("<{bytes} bytes>")),
                     )
                     .child(
@@ -1806,8 +1836,9 @@ impl MetaStripWindow {
         let mut field = Field::new().label(label).items_start().child(editor);
         if let Some(error) = row.parse_error.as_ref() {
             let error_text = error.clone();
+            let error_color = cx.theme().danger_foreground;
             field = field.description_fn(move |_, _| {
-                div().text_color(rgb(0xb33928)).child(error_text.clone())
+                div().text_color(error_color).child(error_text.clone())
             });
         }
 
@@ -1827,9 +1858,9 @@ impl MetaStripWindow {
             .id(SharedString::from("metadata-pane"))
             .w_1_3()
             .h_full()
-            .bg(rgb(0x0e141b))
+            .bg(cx.theme().background)
             .border_1()
-            .border_color(rgb(0x222a33))
+            .border_color(cx.theme().border)
             .child(
                 div()
                     .id(SharedString::from("metadata-scroll"))
@@ -1870,6 +1901,7 @@ impl MetaStripWindow {
 
     fn render_map_popup(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let popup = self.map_popup.as_ref()?;
+        let fallback_text_color = cx.theme().muted_foreground;
 
         Some(
             div()
@@ -1878,7 +1910,7 @@ impl MetaStripWindow {
                 .left_0()
                 .right_0()
                 .bottom_0()
-                .bg(rgb(0x202830))
+                .bg(cx.theme().background)
                 .opacity(0.96)
                 .flex()
                 .items_center()
@@ -1890,9 +1922,9 @@ impl MetaStripWindow {
                         .gap_2()
                         .flex()
                         .flex_col()
-                        .bg(rgb(0xf7f5f0))
+                        .bg(cx.theme().popover)
                         .border_1()
-                        .border_color(rgb(0xb8b0a0))
+                        .border_color(cx.theme().border)
                         .rounded_md()
                         .child(
                             div()
@@ -1915,9 +1947,9 @@ impl MetaStripWindow {
                             div()
                                 .w_full()
                                 .h(px(320.0))
-                                .bg(rgb(0xece7dd))
+                                .bg(cx.theme().secondary)
                                 .border_1()
-                                .border_color(rgb(0xd6d0c4))
+                                .border_color(cx.theme().border)
                                 .rounded_sm()
                                 .overflow_hidden()
                                 .child(
@@ -1925,14 +1957,14 @@ impl MetaStripWindow {
                                         .w_full()
                                         .h_full()
                                         .object_fit(ObjectFit::Cover)
-                                        .with_fallback(|| {
+                                        .with_fallback(move || {
                                             div()
                                                 .size_full()
                                                 .flex()
                                                 .items_center()
                                                 .justify_center()
                                                 .text_sm()
-                                                .text_color(rgb(0x6b6560))
+                                                .text_color(fallback_text_color)
                                                 .child("Map preview unavailable")
                                                 .into_any_element()
                                         }),
@@ -1941,16 +1973,16 @@ impl MetaStripWindow {
                         .child(
                             div()
                                 .p_2()
-                                .bg(rgb(0xeee9e0))
+                                .bg(cx.theme().secondary)
                                 .border_1()
-                                .border_color(rgb(0xd6d0c4))
+                                .border_color(cx.theme().border)
                                 .rounded_sm()
                                 .child(popup.osm_url()),
                         )
                         .child(
                             div()
                                 .text_sm()
-                                .text_color(rgb(0x6b6560))
+                                .text_color(cx.theme().muted_foreground)
                                 .child(
                                     "Use the GPS inputs in the row to adjust coordinates, then open in browser to inspect location.",
                                 ),
@@ -2018,10 +2050,10 @@ impl Render for MetaStripWindow {
             .relative()
             .gap_0()
             .flex()
-            .bg(rgb(0x060b10))
-            .text_color(rgb(0xe7edf4))
+            .bg(cx.theme().background)
+            .text_color(cx.theme().foreground)
             .child(self.render_left_pane(cx))
-            .child(Divider::vertical().color(rgb(0x222a33)))
+            .child(Divider::vertical().color(cx.theme().border))
             .child(self.render_metadata_editor(cx))
             .children(self.render_map_popup(cx))
             .children(self.render_add_tag_popup(cx))
@@ -2032,13 +2064,13 @@ impl Render for MetaStripWindow {
 fn image_fallback(message: &str) -> AnyElement {
     div()
         .size_full()
-        .bg(rgb(0x0a0f14))
+        .bg(gpui::rgb(0x1a1a1a))
         .flex()
         .flex_col()
         .items_center()
         .justify_center()
         .gap_1()
-        .text_color(rgb(0x8d9cac))
+        .text_color(gpui::rgb(0x888888))
         .child(Icon::new(IconName::File).size(px(16.0)))
         .child(div().text_xs().child(message.to_string()))
         .into_any_element()
